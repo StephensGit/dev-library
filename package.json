@@ -1,0 +1,14 @@
+{
+  "name": "dev-library",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {},
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.22.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module"
+}
