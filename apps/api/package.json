@@ -5,13 +5,15 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsx watch src/server.ts"
+    "dev": "tsx watch --env-file=../../.env src/server.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@dev-library/db": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "fastify": "^5.12.1"
   },
   "devDependencies": {

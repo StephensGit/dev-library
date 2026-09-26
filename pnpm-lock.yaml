@@ -209,6 +209,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@dev-library/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
