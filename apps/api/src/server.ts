@@ -12,7 +12,13 @@ fastify.get("/", async () => {
   };
 });
 
-fastify.get("/commands", async () => {
+fastify.get<{
+  Querystring: {
+    search?: string;
+  };
+}>("/commands", async (request) => {
+  const search = request.query.search;
+
   const rows = await db
     .select({
       id: commands.id,
@@ -47,7 +53,24 @@ fastify.get("/commands", async () => {
     }
   }
 
-  return Array.from(commandMap.values());
+  const result = Array.from(commandMap.values());
+
+  if (!search) {
+    return result;
+  }
+
+  const normalizedSearch = search.toLowerCase();
+
+  return result.filter((command) => {
+    return (
+      command.title.toLowerCase().includes(normalizedSearch) ||
+      command.command.toLowerCase().includes(normalizedSearch) ||
+      command.description?.toLowerCase().includes(normalizedSearch) ||
+      command.tags.some((tag) =>
+        tag.name.toLowerCase().includes(normalizedSearch),
+      )
+    );
+  });
 });
 
 fastify.post<{
@@ -79,29 +102,29 @@ fastify.post<{
   async (request, reply) => {
     const { title, command, description, tagIds = [] } = request.body;
 
-const newCommand = await db.transaction(async (tx) => {
-  const [createdCommand] = await tx
-    .insert(commands)
-    .values({
-      title,
-      command,
-      description,
-    })
-    .returning();
+    const newCommand = await db.transaction(async (tx) => {
+      const [createdCommand] = await tx
+        .insert(commands)
+        .values({
+          title,
+          command,
+          description,
+        })
+        .returning();
 
-  if (tagIds.length > 0) {
-    await tx.insert(commandTags).values(
-      tagIds.map((tagId) => ({
-        commandId: createdCommand.id,
-        tagId,
-      })),
-    );
-  }
+      if (tagIds.length > 0) {
+        await tx.insert(commandTags).values(
+          tagIds.map((tagId) => ({
+            commandId: createdCommand.id,
+            tagId,
+          })),
+        );
+      }
 
-  return createdCommand;
-});
+      return createdCommand;
+    });
 
-return reply.code(201).send(newCommand);
+    return reply.code(201).send(newCommand);
   },
 );
 
