@@ -110,16 +110,22 @@ Terminal commands should be visually prominent and extremely easy to copy.
 
 ## CLI
 
-Dev Library will also have a command-line interface.
+Dev Library also includes a command-line interface.
 
-The CLI and web application will use the same backend and database.
+The CLI and web application use the same backend and database.
 
-The long-term idea is that a developer could retrieve commands without leaving their terminal.
+This allows commands to be retrieved without leaving the terminal.
 
 For example:
 
 ```bash
 devlib search docker
+```
+
+Commands can also be listed with:
+
+```bash
+devlib list
 ```
 
 Both interfaces operate on the same library:
@@ -258,40 +264,124 @@ The core idea is:
 
 New features should support that workflow rather than turning the project into a general-purpose developer dashboard.
 
-## Local Development
+# Local Development
 
-### Prerequisites
+This project uses:
 
-Make sure Docker is running before starting the local database.
+- **pnpm** for dependencies and workspace management
+- **Docker** for the local PostgreSQL database
+- **Drizzle** for database migrations
+- **Fastify** for the API
 
-### 1. Start PostgreSQL
+## Prerequisites
+
+Before running the project, make sure you have installed:
+
+- Node.js
+- pnpm
+- Docker Desktop
+
+Docker Desktop must be running before starting the local database.
+
+# First-Time Setup
+
+These steps only need to be completed when setting up the project on a new machine.
+
+## 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd dev-library
+```
+
+## 2. Install dependencies
 
 From the project root:
 
 ```bash
-cd ~/Documents/dev-library
+pnpm install
 ```
 
-Start the PostgreSQL Docker container:
+This installs the dependencies for all packages and applications in the monorepo.
+
+## 3. Create the environment file
+
+Create a `.env` file in the project root:
+
+```bash
+touch .env
+```
+
+Add the local PostgreSQL connection string:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dev_library
+```
+
+The `.env` file is not committed to Git.
+
+## 4. Start PostgreSQL
+
+From the project root:
 
 ```bash
 docker compose up -d
 ```
 
-Check that the container is running:
+Check that the database container is running:
 
 ```bash
 docker compose ps
 ```
 
-The PostgreSQL database now runs inside Docker.
+PostgreSQL now runs locally inside Docker.
 
-### 2. Start the API
+## 5. Run database migrations
 
-Open a second terminal and move to the API:
+From the project root:
 
 ```bash
-cd ~/Documents/dev-library/apps/api
+pnpm --filter @dev-library/db db:migrate
+```
+
+This applies the existing Drizzle migrations and creates the required database tables.
+
+## 6. Seed the database
+
+From the project root:
+
+```bash
+pnpm --filter @dev-library/db db:seed
+```
+
+This adds the initial development data to the database.
+
+# Running the Project
+
+Once the first-time setup has been completed, you normally only need to start PostgreSQL and the applications.
+
+## 1. Start PostgreSQL
+
+From the project root:
+
+```bash
+docker compose up -d
+```
+
+Check that it is running:
+
+```bash
+docker compose ps
+```
+
+## 2. Start the API
+
+Open a second terminal.
+
+From the project root:
+
+```bash
+cd apps/api
 ```
 
 Start the Fastify development server:
@@ -306,60 +396,223 @@ The API will be available at:
 http://localhost:3000
 ```
 
-You can check that it is running with:
+Check that the API is running:
 
 ```bash
 curl http://localhost:3000
 ```
 
-Or retrieve the command library:
+Retrieve the command library:
 
 ```bash
 curl http://localhost:3000/commands
 ```
 
-### 3. Stop the API
+You should receive the seeded commands as JSON.
 
-In the terminal running Fastify, press:
+## 3. Start the Web App
+
+Open another terminal.
+
+From the project root:
+
+```bash
+cd apps/web
+```
+
+Start the frontend development server:
+
+```bash
+pnpm dev
+```
+
+The terminal will display the local URL for the web application.
+
+# CLI Setup
+
+The CLI can be linked globally so that the `devlib` command can be used from anywhere in the terminal.
+
+This only needs to be configured once on each machine.
+
+## 1. Configure pnpm global commands
+
+If global pnpm commands have not previously been configured on the machine, run:
+
+```bash
+pnpm setup
+```
+
+Restart the terminal after running the setup command.
+
+On macOS using zsh, you can alternatively reload the shell configuration:
+
+```bash
+source ~/.zshrc
+```
+
+## 2. Link the CLI
+
+From the project root:
+
+```bash
+cd apps/cli
+```
+
+Link the package globally:
+
+```bash
+pnpm link --global .
+```
+
+The `devlib` command can now be used from anywhere in the terminal.
+
+Check that it is available:
+
+```bash
+devlib --help
+```
+
+List saved commands:
+
+```bash
+devlib list
+```
+
+Search the library:
+
+```bash
+devlib search docker
+```
+
+For example:
+
+```bash
+devlib search postgres
+```
+
+The CLI communicates with the Fastify API, so the local API must be running before using commands that retrieve data.
+
+# Stopping the Project
+
+## Stop the API or Web App
+
+In the terminal running the development server, press:
 
 ```text
 Ctrl + C
 ```
 
-### 4. Stop PostgreSQL
+## Stop PostgreSQL
 
 From the project root:
-
-```bash
-cd ~/Documents/dev-library
-```
-
-Stop and remove the Docker containers:
 
 ```bash
 docker compose down
 ```
 
-The PostgreSQL data is persisted in the Docker volume, so stopping the container does not delete the database.
+This stops and removes the PostgreSQL container.
 
-### Quick Reference
+The PostgreSQL data is stored in a Docker volume, so running:
 
-```text
-Terminal 1 — Database
+```bash
+docker compose down
+```
 
-cd ~/Documents/dev-library
+does **not** delete the database data.
+
+# Resetting the Database
+
+If you need to completely remove the local database and start again:
+
+```bash
+docker compose down -v
+```
+
+Then start PostgreSQL again:
+
+```bash
 docker compose up -d
+```
 
+Run the migrations:
 
-Terminal 2 — API
+```bash
+pnpm --filter @dev-library/db db:migrate
+```
 
-cd ~/Documents/dev-library/apps/api
+Seed the database:
+
+```bash
+pnpm --filter @dev-library/db db:seed
+```
+
+> `docker compose down -v` deletes the local PostgreSQL volume and all local database data.
+
+# Quick Reference
+
+## First-Time Setup
+
+```bash
+pnpm install
+docker compose up -d
+pnpm --filter @dev-library/db db:migrate
+pnpm --filter @dev-library/db db:seed
+```
+
+## Normal Development
+
+### Terminal 1 — Database
+
+```bash
+docker compose up -d
+```
+
+### Terminal 2 — API
+
+```bash
+cd apps/api
 pnpm dev
 ```
 
-Then:
+### Terminal 3 — Web
+
+```bash
+cd apps/web
+pnpm dev
+```
+
+## CLI
+
+```bash
+devlib list
+```
+
+Search for a command:
+
+```bash
+devlib search docker
+```
+
+## Useful URLs
 
 ```text
-PostgreSQL → Docker
-Fastify API → http://localhost:3000
+Fastify API
+http://localhost:3000
+
+Commands endpoint
+http://localhost:3000/commands
+```
+
+## Shut Everything Down
+
+Stop the API and web development servers with:
+
+```text
+Ctrl + C
+```
+
+Then stop PostgreSQL:
+
+```bash
+docker compose down
 ```
