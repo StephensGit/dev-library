@@ -2,7 +2,10 @@
   "name": "dev-library",
   "version": "1.0.0",
   "private": true,
-  "scripts": {},
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
@@ -10,5 +13,8 @@
       "onFail": "download"
     }
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "prettier": "^3.9.10"
+  }
 }
