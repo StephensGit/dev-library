@@ -1,3 +1,4 @@
+import { useEffect, useRef, type RefObject } from 'react';
 import type { Command } from '../../api/api';
 import { ActionMenu } from './ActionMenu';
 import { CopyButton } from '../../components/ui/CopyButton';
@@ -5,13 +6,24 @@ import { TagBadge } from '../tags/TagBadge';
 
 type CommandRowProps = {
   command: Command;
+  selected: boolean;
+  copyRef?: RefObject<HTMLButtonElement | null>;
   onEdit: (command: Command) => void;
   onDelete: (command: Command) => void;
 };
 
-export function CommandRow({ command, onEdit, onDelete }: CommandRowProps) {
+export function CommandRow({ command, selected, copyRef, onEdit, onDelete }: CommandRowProps) {
+  const rowRef = useRef<HTMLLIElement>(null);
+
+  // Keep the keyboard-selected row on screen.
+  useEffect(() => {
+    if (selected) {
+      rowRef.current?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [selected]);
+
   return (
-    <li className="command-row">
+    <li ref={rowRef} className="command-row" aria-current={selected || undefined}>
       <div className="command-info">
         <div className="command-title-row">
           <h2 className="command-title">{command.title}</h2>
@@ -36,7 +48,7 @@ export function CommandRow({ command, onEdit, onDelete }: CommandRowProps) {
           </span>
           {command.command}
         </code>
-        <CopyButton text={command.command} />
+        <CopyButton ref={copyRef} text={command.command} />
       </div>
     </li>
   );

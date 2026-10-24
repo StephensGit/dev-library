@@ -5,11 +5,12 @@ type SidebarProps = {
   tags: Tag[];
   // Undefined while commands are loading or failed, so counts are hidden rather than shown as 0.
   commands?: Command[];
-  activeTagId: number | null;
-  onSelectTag: (tagId: number | null) => void;
+  selectedTagIds: number[];
+  onToggleTag: (tagId: number) => void;
+  onClearTags: () => void;
 };
 
-export function Sidebar({ tags, commands, activeTagId, onSelectTag }: SidebarProps) {
+export function Sidebar({ tags, commands, selectedTagIds, onToggleTag, onClearTags }: SidebarProps) {
   const countFor = (tagId: number) =>
     commands?.filter((command) => command.tags.some((tag) => tag.id === tagId)).length;
 
@@ -23,34 +24,36 @@ export function Sidebar({ tags, commands, activeTagId, onSelectTag }: SidebarPro
       </div>
 
       <nav className="tag-nav" aria-label="Filter by tag">
-        <button
-          type="button"
-          className="tag-nav-item"
-          aria-pressed={activeTagId === null}
-          onClick={() => onSelectTag(null)}
-        >
+        <button type="button" className="tag-nav-item" aria-pressed={selectedTagIds.length === 0} onClick={onClearTags}>
           <span className="tag-nav-name">All commands</span>
           <span className="tag-nav-count">{commands?.length}</span>
         </button>
 
-        {tags.length > 0 && <div className="tag-nav-heading">Tags</div>}
+        {tags.length > 0 && (
+          <div className="tag-nav-heading">
+            Tags
+            {selectedTagIds.length > 0 && (
+              <button type="button" className="tag-nav-clear" onClick={onClearTags}>
+                Clear
+              </button>
+            )}
+          </div>
+        )}
 
-        {tags.map((tag) => (
-          <button
-            key={tag.id}
-            type="button"
-            className="tag-nav-item"
-            aria-pressed={activeTagId === tag.id}
-            // Clicking the active tag again clears the filter.
-            onClick={() => onSelectTag(activeTagId === tag.id ? null : tag.id)}
-          >
-            <span className="tag-nav-name">
-              <span className="tag-dot" style={{ background: tagColor(tag.name) }} />
-              {tag.name}
-            </span>
-            <span className="tag-nav-count">{countFor(tag.id)}</span>
-          </button>
-        ))}
+        {tags.map((tag) => {
+          const checked = selectedTagIds.includes(tag.id);
+
+          return (
+            <label key={tag.id} className="tag-nav-item" data-checked={checked}>
+              <span className="tag-nav-name">
+                <input type="checkbox" className="checkbox" checked={checked} onChange={() => onToggleTag(tag.id)} />
+                <span className="tag-dot" style={{ background: tagColor(tag.name) }} />
+                {tag.name}
+              </span>
+              <span className="tag-nav-count">{countFor(tag.id)}</span>
+            </label>
+          );
+        })}
       </nav>
     </aside>
   );

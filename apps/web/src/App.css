@@ -50,6 +50,9 @@
 }
 
 .tag-nav-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 14px 10px 6px;
   color: var(--faint);
   font-size: 11px;
@@ -73,12 +76,31 @@
   text-align: left;
 }
 
+.tag-nav-clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.tag-nav-clear:hover {
+  color: var(--text);
+}
+
+label.tag-nav-item {
+  cursor: pointer;
+}
+
 .tag-nav-item:hover {
   background: var(--surface-hover);
   color: var(--text);
 }
 
-.tag-nav-item[aria-pressed='true'] {
+.tag-nav-item[aria-pressed='true'],
+.tag-nav-item[data-checked='true'] {
   background: var(--surface);
   color: var(--text);
 }
@@ -91,6 +113,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.checkbox {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: transparent center / 11px no-repeat;
+  appearance: none;
+  cursor: pointer;
+}
+
+.checkbox:checked {
+  border-color: var(--mint);
+  /* Tick drawn in --mint-ink. */
+  background-color: var(--mint);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230c1a14' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5 10 17.5 19 7'/%3E%3C/svg%3E");
 }
 
 .tag-nav-count {
@@ -263,6 +304,20 @@
   margin-top: 4px;
 }
 
+.tag-badge-remove {
+  margin: 0 -3px 0 -1px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tag-badge-remove:hover {
+  color: var(--text);
+}
+
 .tag-badge {
   display: inline-flex;
   align-items: center;
@@ -277,12 +332,34 @@
 
 /* Command list */
 
+.list-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  padding: 14px 24px 14px 26px;
+  border-bottom: 1px solid var(--border);
+}
+
 .list-count {
   margin: 0;
-  padding: 16px 26px 4px;
   color: var(--muted);
   font-size: 13px;
   font-weight: 500;
+}
+
+.list-hints {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 0 auto;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.list-hints .kbd + .kbd {
+  margin-left: 6px;
 }
 
 .command-list {
@@ -297,10 +374,26 @@
   gap: 22px;
   padding: 12px 24px 14px 26px;
   border-bottom: 1px solid var(--border);
+  /* Keeps rows clear of the sticky header when scrolled into view. */
+  scroll-margin-top: var(--header-height);
 }
 
 .command-row:hover {
   background: rgba(255, 255, 255, 0.012);
+}
+
+/* Keyboard-selected row (↑/↓). */
+.command-row[aria-current='true'] {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.command-row[aria-current='true'] .terminal {
+  border-color: #3a3d44;
+}
+
+.command-row[aria-current='true'] .copy-button {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .command-info {
@@ -731,7 +824,8 @@ textarea.input {
 /* Shortcut hints only make sense with a keyboard, so hide them on touch devices. */
 @media (hover: none) {
   .search .kbd,
-  .add-button .kbd {
+  .add-button .kbd,
+  .list-hints {
     display: none;
   }
 }
@@ -792,8 +886,8 @@ textarea.input {
     padding: 0 11px;
   }
 
-  .list-count {
-    padding: 14px 14px 4px;
+  .list-header {
+    padding: 12px 14px;
   }
 
   .command-row {
