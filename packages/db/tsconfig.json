@@ -1,0 +1,14 @@
+{
+  // Source-only package: the API and tsx import the .ts files directly, so nothing is emitted.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src", "drizzle.config.ts"]
+}
