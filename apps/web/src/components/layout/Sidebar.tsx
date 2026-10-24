@@ -1,17 +1,17 @@
-import type { Command, Tag } from '../../api/api'
-import { tagColor } from '../../features/tags/tagColors'
+import type { Command, Tag } from '../../api/api';
+import { tagColor } from '../../features/tags/tagColors';
 
 type SidebarProps = {
-  tags: Tag[]
+  tags: Tag[];
   // Undefined while commands are loading or failed, so counts are hidden rather than shown as 0.
-  commands?: Command[]
-  activeTagId: number | null
-  onSelectTag: (tagId: number | null) => void
-}
+  commands?: Command[];
+  activeTagId: number | null;
+  onSelectTag: (tagId: number | null) => void;
+};
 
 export function Sidebar({ tags, commands, activeTagId, onSelectTag }: SidebarProps) {
   const countFor = (tagId: number) =>
-    commands?.filter((command) => command.tags.some((tag) => tag.id === tagId)).length
+    commands?.filter((command) => command.tags.some((tag) => tag.id === tagId)).length;
 
   return (
     <aside className="sidebar">
@@ -53,5 +53,5 @@ export function Sidebar({ tags, commands, activeTagId, onSelectTag }: SidebarPro
         ))}
       </nav>
     </aside>
-  )
+  );
 }

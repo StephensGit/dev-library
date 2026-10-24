@@ -1,14 +1,14 @@
-import type { Command } from '../../api/api'
-import { useDeleteCommand } from '../../api/mutations/commands'
-import { Dialog } from '../../components/ui/Dialog'
+import type { Command } from '../../api/api';
+import { useDeleteCommand } from '../../api/mutations/commands';
+import { Dialog } from '../../components/ui/Dialog';
 
 type ConfirmDeleteProps = {
-  command: Command
-  onClose: () => void
-}
+  command: Command;
+  onClose: () => void;
+};
 
 export function ConfirmDelete({ command, onClose }: ConfirmDeleteProps) {
-  const deleteCommand = useDeleteCommand()
+  const deleteCommand = useDeleteCommand();
 
   return (
     <Dialog onClose={onClose} labelledBy="confirm-delete-title" className="confirm-dialog">
@@ -36,5 +36,5 @@ export function ConfirmDelete({ command, onClose }: ConfirmDeleteProps) {
         </div>
       </div>
     </Dialog>
-  )
+  );
 }

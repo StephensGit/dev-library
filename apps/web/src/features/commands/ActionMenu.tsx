@@ -1,45 +1,45 @@
-import { useEffect, useRef, useState } from 'react'
-import { EditIcon, MoreIcon, TrashIcon } from '../../components/ui/Icons'
+import { useEffect, useRef, useState } from 'react';
+import { EditIcon, MoreIcon, TrashIcon } from '../../components/ui/Icons';
 
 type ActionMenuProps = {
-  label: string
-  onEdit: () => void
-  onDelete: () => void
-}
+  label: string;
+  onEdit: () => void;
+  onDelete: () => void;
+};
 
 export function ActionMenu({ label, onEdit, onDelete }: ActionMenuProps) {
-  const [open, setOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking anywhere outside the menu or pressing Escape.
   useEffect(() => {
     if (!open) {
-      return
+      return;
     }
 
     function handlePointerDown(event: PointerEvent) {
       if (!menuRef.current?.contains(event.target as Node)) {
-        setOpen(false)
+        setOpen(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        setOpen(false)
+        setOpen(false);
       }
     }
 
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [open])
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
 
   function choose(action: () => void) {
-    setOpen(false)
-    action()
+    setOpen(false);
+    action();
   }
 
   return (
@@ -61,17 +61,12 @@ export function ActionMenu({ label, onEdit, onDelete }: ActionMenuProps) {
             <EditIcon size={13} />
             Edit
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="menu-item menu-item-danger"
-            onClick={() => choose(onDelete)}
-          >
+          <button type="button" role="menuitem" className="menu-item menu-item-danger" onClick={() => choose(onDelete)}>
             <TrashIcon size={13} />
             Delete
           </button>
         </div>
       )}
     </div>
-  )
+  );
 }

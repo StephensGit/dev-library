@@ -1,6 +1,6 @@
-import { commandTags, commands, db, tags } from "@dev-library/db";
-import { asc, eq, inArray, sql, type SQL } from "drizzle-orm";
-import Fastify from "fastify";
+import { commandTags, commands, db, tags } from '@dev-library/db';
+import { asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import Fastify from 'fastify';
 
 const fastify = Fastify({
   logger: true,
@@ -22,25 +22,25 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 // Shared validation for creating and replacing a command.
 // The pattern rejects values that are only whitespace.
 const commandBodySchema = {
-  type: "object",
-  required: ["title", "command"],
+  type: 'object',
+  required: ['title', 'command'],
   properties: {
-    title: { type: "string", minLength: 1, pattern: "\\S" },
-    command: { type: "string", minLength: 1, pattern: "\\S" },
-    description: { type: "string" },
+    title: { type: 'string', minLength: 1, pattern: '\\S' },
+    command: { type: 'string', minLength: 1, pattern: '\\S' },
+    description: { type: 'string' },
     tagIds: {
-      type: "array",
-      items: { type: "integer" },
+      type: 'array',
+      items: { type: 'integer' },
       uniqueItems: true,
     },
   },
 };
 
 const idParamsSchema = {
-  type: "object",
-  required: ["id"],
+  type: 'object',
+  required: ['id'],
   properties: {
-    id: { type: "integer", minimum: 1 },
+    id: { type: 'integer', minimum: 1 },
   },
 };
 
@@ -101,21 +101,18 @@ async function assertTagsExist(tx: Transaction, tagIds: number[]) {
     return;
   }
 
-  const existing = await tx
-    .select({ id: tags.id })
-    .from(tags)
-    .where(inArray(tags.id, tagIds));
+  const existing = await tx.select({ id: tags.id }).from(tags).where(inArray(tags.id, tagIds));
 
   if (existing.length !== tagIds.length) {
     const existingIds = new Set(existing.map((tag) => tag.id));
     const missing = tagIds.filter((tagId) => !existingIds.has(tagId));
-    throw httpError(400, `Unknown tag ids: ${missing.join(", ")}`);
+    throw httpError(400, `Unknown tag ids: ${missing.join(', ')}`);
   }
 }
 
-fastify.get("/", async () => {
+fastify.get('/', async () => {
   return {
-    message: "Dev Library API is running",
+    message: 'Dev Library API is running',
   };
 });
 
@@ -123,7 +120,7 @@ fastify.get<{
   Querystring: {
     search?: string;
   };
-}>("/commands", async (request) => {
+}>('/commands', async (request) => {
   const search = request.query.search;
   const result = await findCommands();
 
@@ -138,15 +135,13 @@ fastify.get<{
       command.title.toLowerCase().includes(normalizedSearch) ||
       command.command.toLowerCase().includes(normalizedSearch) ||
       command.description?.toLowerCase().includes(normalizedSearch) ||
-      command.tags.some((tag: { name: string }) =>
-        tag.name.toLowerCase().includes(normalizedSearch),
-      )
+      command.tags.some((tag: { name: string }) => tag.name.toLowerCase().includes(normalizedSearch))
     );
   });
 });
 
 fastify.post<{ Body: CommandBody }>(
-  "/commands",
+  '/commands',
   {
     schema: {
       body: commandBodySchema,
@@ -185,7 +180,7 @@ fastify.post<{ Body: CommandBody }>(
 
 // Replaces the whole command: omitted description or tagIds are cleared.
 fastify.put<{ Params: IdParams; Body: CommandBody }>(
-  "/commands/:id",
+  '/commands/:id',
   {
     schema: {
       params: idParamsSchema,
@@ -231,7 +226,7 @@ fastify.put<{ Params: IdParams; Body: CommandBody }>(
 );
 
 fastify.delete<{ Params: IdParams }>(
-  "/commands/:id",
+  '/commands/:id',
   {
     schema: {
       params: idParamsSchema,
@@ -244,10 +239,7 @@ fastify.delete<{ Params: IdParams }>(
       // Remove tag links first; the foreign key doesn't cascade.
       await tx.delete(commandTags).where(eq(commandTags.commandId, id));
 
-      const [deletedCommand] = await tx
-        .delete(commands)
-        .where(eq(commands.id, id))
-        .returning();
+      const [deletedCommand] = await tx.delete(commands).where(eq(commands.id, id)).returning();
 
       if (!deletedCommand) {
         throw httpError(404, `Command ${id} not found`);
@@ -258,7 +250,7 @@ fastify.delete<{ Params: IdParams }>(
   },
 );
 
-fastify.get("/tags", async () => {
+fastify.get('/tags', async () => {
   return db
     .select({ id: tags.id, name: tags.name })
     .from(tags)
@@ -266,14 +258,14 @@ fastify.get("/tags", async () => {
 });
 
 fastify.post<{ Body: { name: string } }>(
-  "/tags",
+  '/tags',
   {
     schema: {
       body: {
-        type: "object",
-        required: ["name"],
+        type: 'object',
+        required: ['name'],
         properties: {
-          name: { type: "string", minLength: 1, maxLength: 50, pattern: "\\S" },
+          name: { type: 'string', minLength: 1, maxLength: 50, pattern: '\\S' },
         },
       },
     },
@@ -291,10 +283,7 @@ fastify.post<{ Body: { name: string } }>(
       throw httpError(409, `Tag "${name}" already exists`);
     }
 
-    const [createdTag] = await db
-      .insert(tags)
-      .values({ name })
-      .returning({ id: tags.id, name: tags.name });
+    const [createdTag] = await db.insert(tags).values({ name }).returning({ id: tags.id, name: tags.name });
 
     return reply.code(201).send(createdTag);
   },
