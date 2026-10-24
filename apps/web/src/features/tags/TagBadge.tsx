@@ -1,8 +1,8 @@
-import { tagColor } from './tagColors'
+import { tagColor } from './tagColors';
 
 type TagBadgeProps = {
-  name: string
-}
+  name: string;
+};
 
 export function TagBadge({ name }: TagBadgeProps) {
   return (
@@ -10,5 +10,5 @@ export function TagBadge({ name }: TagBadgeProps) {
       <span className="tag-dot" style={{ background: tagColor(name) }} />
       {name}
     </span>
-  )
+  );
 }

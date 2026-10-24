@@ -1,15 +1,15 @@
-import type { Command } from '../../api/api'
-import { CommandRow } from './CommandRow'
+import type { Command } from '../../api/api';
+import { CommandRow } from './CommandRow';
 
 type CommandListProps = {
-  commands: Command[]
-  total: number
-  onEdit: (command: Command) => void
-  onDelete: (command: Command) => void
-}
+  commands: Command[];
+  total: number;
+  onEdit: (command: Command) => void;
+  onDelete: (command: Command) => void;
+};
 
 export function CommandList({ commands, total, onEdit, onDelete }: CommandListProps) {
-  const noun = total === 1 ? 'command' : 'commands'
+  const noun = total === 1 ? 'command' : 'commands';
 
   return (
     <>
@@ -22,5 +22,5 @@ export function CommandList({ commands, total, onEdit, onDelete }: CommandListPr
         ))}
       </ul>
     </>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
 // Mirrors the Fastify body schema for POST/PUT /commands.
 export const commandSchema = z.object({
@@ -6,6 +6,6 @@ export const commandSchema = z.object({
   command: z.string().trim().min(1, 'Command is required'),
   description: z.string().trim(),
   tagIds: z.array(z.number().int()),
-})
+});
 
-export type CommandFormValues = z.infer<typeof commandSchema>
+export type CommandFormValues = z.infer<typeof commandSchema>;

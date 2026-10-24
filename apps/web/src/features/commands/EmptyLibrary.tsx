@@ -1,9 +1,9 @@
-import { PlusIcon } from '../../components/ui/Icons'
-import { StatusMessage } from '../../components/ui/StatusMessage'
+import { PlusIcon } from '../../components/ui/Icons';
+import { StatusMessage } from '../../components/ui/StatusMessage';
 
 type EmptyLibraryProps = {
-  onAdd: () => void
-}
+  onAdd: () => void;
+};
 
 export function EmptyLibrary({ onAdd }: EmptyLibraryProps) {
   return (
@@ -17,5 +17,5 @@ export function EmptyLibrary({ onAdd }: EmptyLibraryProps) {
         </button>
       }
     />
-  )
+  );
 }

@@ -1,4 +1,4 @@
-import pg from "pg";
+import pg from 'pg';
 
 const { Client } = pg;
 
@@ -8,8 +8,8 @@ const client = new Client({
 
 await client.connect();
 
-const result = await client.query("SELECT current_database()");
+const result = await client.query('SELECT current_database()');
 
-console.log("Connected to:", result.rows[0].current_database);
+console.log('Connected to:', result.rows[0].current_database);
 
 await client.end();

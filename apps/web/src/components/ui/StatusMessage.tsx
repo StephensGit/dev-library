@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 type StatusMessageProps = {
-  title: string
-  description: string
-  action?: ReactNode
-}
+  title: string;
+  description: string;
+  action?: ReactNode;
+};
 
 // Shared layout for the empty, no-results and error states.
 export function StatusMessage({ title, description, action }: StatusMessageProps) {
@@ -17,5 +17,5 @@ export function StatusMessage({ title, description, action }: StatusMessageProps
       <p>{description}</p>
       {action}
     </div>
-  )
+  );
 }

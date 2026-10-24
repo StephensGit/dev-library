@@ -1,10 +1,10 @@
-import { StatusMessage } from '../../components/ui/StatusMessage'
+import { StatusMessage } from '../../components/ui/StatusMessage';
 
 type LoadErrorProps = {
-  error: Error
-  retrying: boolean
-  onRetry: () => void
-}
+  error: Error;
+  retrying: boolean;
+  onRetry: () => void;
+};
 
 export function LoadError({ error, retrying, onRetry }: LoadErrorProps) {
   return (
@@ -17,5 +17,5 @@ export function LoadError({ error, retrying, onRetry }: LoadErrorProps) {
         </button>
       }
     />
-  )
+  );
 }

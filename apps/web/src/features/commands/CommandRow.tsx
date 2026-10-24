@@ -1,13 +1,13 @@
-import type { Command } from '../../api/api'
-import { ActionMenu } from './ActionMenu'
-import { CopyButton } from '../../components/ui/CopyButton'
-import { TagBadge } from '../tags/TagBadge'
+import type { Command } from '../../api/api';
+import { ActionMenu } from './ActionMenu';
+import { CopyButton } from '../../components/ui/CopyButton';
+import { TagBadge } from '../tags/TagBadge';
 
 type CommandRowProps = {
-  command: Command
-  onEdit: (command: Command) => void
-  onDelete: (command: Command) => void
-}
+  command: Command;
+  onEdit: (command: Command) => void;
+  onDelete: (command: Command) => void;
+};
 
 export function CommandRow({ command, onEdit, onDelete }: CommandRowProps) {
   return (
@@ -15,11 +15,7 @@ export function CommandRow({ command, onEdit, onDelete }: CommandRowProps) {
       <div className="command-info">
         <div className="command-title-row">
           <h2 className="command-title">{command.title}</h2>
-          <ActionMenu
-            label={command.title}
-            onEdit={() => onEdit(command)}
-            onDelete={() => onDelete(command)}
-          />
+          <ActionMenu label={command.title} onEdit={() => onEdit(command)} onDelete={() => onDelete(command)} />
         </div>
 
         {command.description && <p className="command-description">{command.description}</p>}
@@ -43,5 +39,5 @@ export function CommandRow({ command, onEdit, onDelete }: CommandRowProps) {
         <CopyButton text={command.command} />
       </div>
     </li>
-  )
+  );
 }

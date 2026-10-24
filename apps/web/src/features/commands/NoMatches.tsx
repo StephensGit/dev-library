@@ -1,12 +1,12 @@
-import { StatusMessage } from '../../components/ui/StatusMessage'
+import { StatusMessage } from '../../components/ui/StatusMessage';
 
 type NoMatchesProps = {
-  search: string
-  onClear: () => void
-}
+  search: string;
+  onClear: () => void;
+};
 
 export function NoMatches({ search, onClear }: NoMatchesProps) {
-  const query = search.trim()
+  const query = search.trim();
 
   return (
     <StatusMessage
@@ -18,5 +18,5 @@ export function NoMatches({ search, onClear }: NoMatchesProps) {
         </button>
       }
     />
-  )
+  );
 }

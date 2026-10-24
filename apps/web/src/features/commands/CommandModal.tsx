@@ -1,24 +1,24 @@
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Controller, useForm } from 'react-hook-form'
-import type { Command } from '../../api/api'
-import { commandSchema, type CommandFormValues } from './commandSchema'
-import { useCreateCommand, useUpdateCommand } from '../../api/mutations/commands'
-import { useTags } from '../../api/queries/command-tag'
-import { Dialog } from '../../components/ui/Dialog'
-import { TagPicker } from '../tags/TagPicker'
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Controller, useForm } from 'react-hook-form';
+import type { Command } from '../../api/api';
+import { commandSchema, type CommandFormValues } from './commandSchema';
+import { useCreateCommand, useUpdateCommand } from '../../api/mutations/commands';
+import { useTags } from '../../api/queries/command-tag';
+import { Dialog } from '../../components/ui/Dialog';
+import { TagPicker } from '../tags/TagPicker';
 
 type CommandModalProps = {
   // Passing a command switches the modal into edit mode.
-  command?: Command
-  onClose: () => void
-}
+  command?: Command;
+  onClose: () => void;
+};
 
 export function CommandModal({ command, onClose }: CommandModalProps) {
-  const isEditing = command !== undefined
-  const { data: tags = [] } = useTags()
-  const createCommand = useCreateCommand()
-  const updateCommand = useUpdateCommand()
-  const mutation = isEditing ? updateCommand : createCommand
+  const isEditing = command !== undefined;
+  const { data: tags = [] } = useTags();
+  const createCommand = useCreateCommand();
+  const updateCommand = useUpdateCommand();
+  const mutation = isEditing ? updateCommand : createCommand;
 
   const {
     register,
@@ -34,15 +34,15 @@ export function CommandModal({ command, onClose }: CommandModalProps) {
       description: command?.description ?? '',
       tagIds: command?.tags.map((tag) => tag.id) ?? [],
     },
-  })
+  });
 
   const save = handleSubmit((values) => {
     if (isEditing) {
-      updateCommand.mutate({ id: command.id, payload: values }, { onSuccess: onClose })
+      updateCommand.mutate({ id: command.id, payload: values }, { onSuccess: onClose });
     } else {
-      createCommand.mutate(values, { onSuccess: onClose })
+      createCommand.mutate(values, { onSuccess: onClose });
     }
-  })
+  });
 
   return (
     <Dialog onClose={onClose} labelledBy="command-modal-title" className="command-modal">
@@ -50,8 +50,8 @@ export function CommandModal({ command, onClose }: CommandModalProps) {
         onSubmit={save}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault()
-            save()
+            event.preventDefault();
+            save();
           }
         }}
       >
@@ -123,9 +123,7 @@ export function CommandModal({ command, onClose }: CommandModalProps) {
             <Controller
               control={control}
               name="tagIds"
-              render={({ field }) => (
-                <TagPicker tags={tags} selectedIds={field.value} onChange={field.onChange} />
-              )}
+              render={({ field }) => <TagPicker tags={tags} selectedIds={field.value} onChange={field.onChange} />}
             />
           </div>
         </div>
@@ -143,16 +141,12 @@ export function CommandModal({ command, onClose }: CommandModalProps) {
             <button type="button" className="button button-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="button button-primary"
-              disabled={!isValid || mutation.isPending}
-            >
+            <button type="submit" className="button button-primary" disabled={!isValid || mutation.isPending}>
               {mutation.isPending ? 'Saving…' : isEditing ? 'Save changes' : 'Save command'}
             </button>
           </div>
         </div>
       </form>
     </Dialog>
-  )
+  );
 }
