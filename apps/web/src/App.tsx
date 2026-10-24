@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Command } from './api/api';
 import { CommandList } from './features/commands/CommandList';
 import { CommandModal } from './features/commands/CommandModal';
@@ -31,33 +31,78 @@ function App() {
   const { isPending, error, data: commands = [], isFetching, refetch } = useCommands();
   const { data: tags = [] } = useTags();
   const [search, setSearch] = useState('');
-  const [selectedTagId, setSelectedTagId] = useState<number | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [selectedCommandId, setSelectedCommandId] = useState<number | null>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const selectedCopyRef = useRef<HTMLButtonElement>(null);
 
   // Look up by id so dialogs always see the latest data (and close if the command disappears).
   const editing = typeof modal === 'number' ? commands.find((command) => command.id === modal) : undefined;
   const deleting = commands.find((command) => command.id === deletingId);
   const modalOpen = modal === 'new' || editing !== undefined;
 
-  // Ignore a selected tag that no longer exists.
-  const activeTagId = tags.some((tag) => tag.id === selectedTagId) ? selectedTagId : null;
+  // Ignore selected tags that no longer exist.
+  const activeTags = useMemo(() => tags.filter((tag) => selectedTagIds.includes(tag.id)), [tags, selectedTagIds]);
 
-  const visibleCommands = commands.filter(
-    (command) =>
-      matchesSearch(command, search) && (activeTagId === null || command.tags.some((tag) => tag.id === activeTagId)),
+  // Memoised so the keyboard effect below only re-binds when the list actually changes.
+  // A command matches if it has any of the checked tags.
+  const visibleCommands = useMemo(
+    () =>
+      commands.filter(
+        (command) =>
+          matchesSearch(command, search) &&
+          (activeTags.length === 0 || command.tags.some((tag) => activeTags.some((active) => active.id === tag.id))),
+      ),
+    [commands, search, activeTags],
   );
 
-  // "/" focuses search and "N" opens the add modal, unless the user is typing or a dialog is open.
+  // -1 when nothing is selected or the selected command is filtered out.
+  const selectedIndex = visibleCommands.findIndex((command) => command.id === selectedCommandId);
+
   const dialogOpen = modalOpen || deleting !== undefined;
 
+  // Shortcuts, unless a dialog is open:
+  // "/" focuses search, "N" opens the add modal, ↑/↓ move the selection and Enter copies it.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      const target = event.target as HTMLElement;
-      const isTyping = target.closest('input, textarea, select, [contenteditable="true"]');
+      if (dialogOpen || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
 
-      if (dialogOpen || isTyping || event.metaKey || event.ctrlKey || event.altKey) {
+      const target = event.target as HTMLElement;
+      // The search box counts as "not typing" for ↑/↓/Enter, so you can search → pick → copy without the mouse.
+      const inSearch = target === searchRef.current;
+      const isTyping = target.closest('input:not([type="checkbox"]), textarea, select, [contenteditable="true"]');
+
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        // Arrows do nothing on buttons or checkboxes, so they move the list from there too (but not inside a menu).
+        if ((isTyping && !inSearch) || target.closest('[role="menu"]') || visibleCommands.length === 0) {
+          return;
+        }
+
+        event.preventDefault();
+        const next =
+          event.key === 'ArrowDown'
+            ? Math.min(selectedIndex + 1, visibleCommands.length - 1)
+            : Math.max(selectedIndex - 1, 0);
+        setSelectedCommandId(visibleCommands[next].id);
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        // Enter keeps its normal job on buttons, links and checkboxes.
+        const isControl = target.closest('input, textarea, select, button, a, [contenteditable="true"]');
+
+        if (selectedIndex !== -1 && (inSearch || !isControl)) {
+          event.preventDefault();
+          selectedCopyRef.current?.click();
+        }
+        return;
+      }
+
+      if (isTyping) {
         return;
       }
 
@@ -72,11 +117,15 @@ function App() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [dialogOpen]);
+  }, [dialogOpen, visibleCommands, selectedIndex]);
+
+  function toggleTag(tagId: number) {
+    setSelectedTagIds((ids) => (ids.includes(tagId) ? ids.filter((id) => id !== tagId) : [...ids, tagId]));
+  }
 
   function clearFilters() {
     setSearch('');
-    setSelectedTagId(null);
+    setSelectedTagIds([]);
   }
 
   function renderContent() {
@@ -91,6 +140,10 @@ function App() {
       <CommandList
         commands={visibleCommands}
         total={commands.length}
+        filterTags={activeTags}
+        selectedId={selectedCommandId}
+        selectedCopyRef={selectedCopyRef}
+        onRemoveTag={toggleTag}
         onEdit={(command) => setModal(command.id)}
         onDelete={(command) => setDeletingId(command.id)}
       />
@@ -99,7 +152,13 @@ function App() {
 
   return (
     <div className="app">
-      <Sidebar tags={tags} commands={commands} activeTagId={activeTagId} onSelectTag={setSelectedTagId} />
+      <Sidebar
+        tags={tags}
+        commands={commands}
+        selectedTagIds={activeTags.map((tag) => tag.id)}
+        onToggleTag={toggleTag}
+        onClearTags={() => setSelectedTagIds([])}
+      />
 
       <div className="main">
         <Header search={search} onSearchChange={setSearch} onAdd={() => setModal('new')} searchRef={searchRef} />
