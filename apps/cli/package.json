@@ -4,11 +4,12 @@
   "description": "",
   "main": "index.js",
   "bin": {
-    "devlib": "./src/index.ts"
+    "devlib": "./dist/index.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx src/index.ts",
+    "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
