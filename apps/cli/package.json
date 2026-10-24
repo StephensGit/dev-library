@@ -4,11 +4,13 @@
   "description": "",
   "main": "index.js",
   "bin": {
-    "devlib": "./src/index.ts"
+    "devlib": "./dist/index.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +23,6 @@
   "devDependencies": {
     "@types/node": "^24.13.3",
     "tsx": "^4.23.12",
-    "typescript": "^7.0.2"
+    "typescript": "~6.0.3"
   }
 }

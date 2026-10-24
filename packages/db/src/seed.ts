@@ -1,5 +1,5 @@
-import { db, pool } from './index';
-import { commandTags, commands, tags } from './schema';
+import { db, pool } from './index.js';
+import { commandTags, commands, tags } from './schema.js';
 
 async function seed() {
   // Clear existing development data.

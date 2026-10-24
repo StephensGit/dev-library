@@ -450,7 +450,7 @@ On macOS using zsh, you can alternatively reload the shell configuration:
 source ~/.zshrc
 ```
 
-## 2. Link the CLI
+## 2. Build and link the CLI
 
 From the project root:
 
@@ -458,11 +458,21 @@ From the project root:
 cd apps/cli
 ```
 
+Compile the CLI to JavaScript in `dist/`:
+
+```bash
+pnpm build
+```
+
 Link the package globally:
 
 ```bash
-pnpm link --global .
+pnpm add --global "$PWD"
 ```
+
+This links to the folder rather than copying it, so after changing the CLI you only need to run `pnpm build` again.
+
+> Avoid `pnpm link --global .` here. With pnpm 11 it reinstalls `apps/cli` as a standalone project and leaves a stray `pnpm-workspace.yaml` and `pnpm-lock.yaml` behind.
 
 The `devlib` command can now be used from anywhere in the terminal.
 
