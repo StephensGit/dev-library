@@ -1,3 +1,5 @@
+import { queryClient } from './queryClient';
+
 export type Tag = {
   id: number;
   name: string;
@@ -28,6 +30,11 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
+    // The session has ended (expired or logged out elsewhere), so re-check it to show the login screen.
+    if (response.status === 401) {
+      void queryClient.invalidateQueries({ queryKey: ['session'] });
+    }
+
     // Fastify errors look like { statusCode, error, message }.
     const body = await response.json().catch(() => null);
     throw new Error(body?.message ?? `Request failed with status ${response.status}`);
