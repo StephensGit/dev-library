@@ -110,6 +110,8 @@ Terminal commands should be visually prominent and extremely easy to copy.
 
 ## CLI
 
+> **Temporarily unavailable.** The API now requires a login session, and the CLI can't log in yet, so `devlib list` and `devlib search` fail with a "requires you to log in" message (HTTP 401). Use the web app until CLI authentication is added.
+
 Dev Library also includes a command-line interface.
 
 The CLI and web application use the same backend and database.
@@ -175,15 +177,27 @@ PostgreSQL
 
 ## Current API
 
-The API currently supports:
+### Accounts
 
-### GET /commands
+Each user has a private library. Registration, login, sessions and logout are handled by [Better Auth](https://www.better-auth.com) at `/api/auth/*` (for example `POST /api/auth/sign-up/email` and `POST /api/auth/sign-in/email`). Logging in sets an `HttpOnly` session cookie; sessions are stored in PostgreSQL, so logging out ends them immediately.
 
-Returns saved commands together with their tags.
+### Commands and tags
 
-### POST /commands
+| Route                  | Purpose                                                 |
+| ---------------------- | ------------------------------------------------------- |
+| `GET /commands`        | Your commands with their tags (`?search=` filters them) |
+| `POST /commands`       | Create a command, optionally with some of your tags     |
+| `PUT /commands/:id`    | Replace one of your commands                            |
+| `DELETE /commands/:id` | Delete one of your commands                             |
+| `GET /tags`            | Your tags                                               |
+| `POST /tags`           | Create a tag (names are unique per user, ignoring case) |
 
-Creates a new command and optionally associates it with existing tags.
+These routes:
+
+- return **401** without a valid session cookie
+- only ever read or change the logged-in user's rows; another user's command returns **404**, the same as a missing one
+- reject tag ids that aren't yours with **400**
+- reject `POST`, `PUT` and `DELETE` requests whose `Origin` header is missing or isn't the web app's (**403**), which blocks cross-site request forgery
 
 Database transactions ensure that creating a command and its tag relationships either succeeds completely or is rolled back.
 
@@ -312,11 +326,15 @@ Create a `.env` file in the project root:
 touch .env
 ```
 
-Add the local PostgreSQL connection string:
+Add the local PostgreSQL connection string and the Better Auth settings (see `.env.example`):
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dev_library
+BETTER_AUTH_SECRET=<output of: openssl rand -base64 32>
+BETTER_AUTH_URL=http://localhost:5173
 ```
+
+`BETTER_AUTH_URL` is where the browser opens the app. Only requests from that origin may change data.
 
 The `.env` file is not committed to Git.
 
@@ -346,15 +364,15 @@ pnpm --filter @dev-library/db db:migrate
 
 This applies the existing Drizzle migrations and creates the required database tables.
 
-## 6. Seed the database
+## 6. Seed your library (optional)
 
-From the project root:
+Start the project (see below) and create an account in the web app. Then, from the project root:
 
 ```bash
-pnpm --filter @dev-library/db db:seed
+pnpm --filter @dev-library/db db:seed you@example.com
 ```
 
-This adds the initial development data to the database.
+This adds a few starter commands and tags to that account. It only runs on an empty library and never deletes or changes anyone's data.
 
 # Running the Project
 
@@ -402,13 +420,11 @@ Check that the API is running:
 curl http://localhost:3000
 ```
 
-Retrieve the command library:
+The command routes need a login session, so without one they respond with 401:
 
 ```bash
-curl http://localhost:3000/commands
+curl -i http://localhost:3000/commands
 ```
-
-You should receive the seeded commands as JSON.
 
 ## 3. Start the Web App
 
@@ -550,10 +566,10 @@ Run the migrations:
 pnpm --filter @dev-library/db db:migrate
 ```
 
-Seed the database:
+Register again in the web app, then optionally seed your library:
 
 ```bash
-pnpm --filter @dev-library/db db:seed
+pnpm --filter @dev-library/db db:seed you@example.com
 ```
 
 > `docker compose down -v` deletes the local PostgreSQL volume and all local database data.
@@ -566,8 +582,19 @@ pnpm --filter @dev-library/db db:seed
 pnpm install
 docker compose up -d
 pnpm --filter @dev-library/db db:migrate
-pnpm --filter @dev-library/db db:seed
+# After registering in the web app:
+pnpm --filter @dev-library/db db:seed you@example.com
 ```
+
+## Tests
+
+The API integration tests use a separate database, `dev_library_test`, which they create, migrate and empty automatically. Postgres must be running:
+
+```bash
+pnpm test
+```
+
+To use a different database, set `TEST_DATABASE_URL`. Its name must end in `_test`, so the tests can never wipe your development data.
 
 ## Normal Development
 
@@ -593,6 +620,8 @@ pnpm dev
 
 ## CLI
 
+Temporarily returns 401 until CLI login is added (see [CLI](#cli)).
+
 ```bash
 devlib list
 ```
@@ -609,7 +638,10 @@ devlib search docker
 Fastify API
 http://localhost:3000
 
-Commands endpoint
+Web app (log in here)
+http://localhost:5173
+
+Commands endpoint (needs a login session)
 http://localhost:3000/commands
 ```
 

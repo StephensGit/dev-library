@@ -2,14 +2,16 @@ import { sql } from 'drizzle-orm';
 import { index, integer, pgTable, primaryKey, serial, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { users } from './auth-schema.js';
 
-// user_id stays nullable until existing rows are assigned an owner (see src/assign-owner.ts).
+// Every command and tag belongs to one user (src/assign-owner.ts backfilled rows created before accounts).
 // Deleting a user deletes their commands and tags.
 
 export const commands = pgTable(
   'commands',
   {
     id: serial('id').primaryKey(),
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     command: text('command').notNull(),
     description: text('description'),
@@ -23,7 +25,9 @@ export const tags = pgTable(
   'tags',
   {
     id: serial('id').primaryKey(),
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
   },
   // Each user's tag names are unique, ignoring case ("Docker" and "docker" clash).

@@ -20,19 +20,29 @@ const API_URL = 'http://localhost:3000';
 async function fetchCommands(search?: string): Promise<DevCommand[]> {
   const url = search ? `${API_URL}/commands?search=${encodeURIComponent(search)}` : `${API_URL}/commands`;
 
+  let response: Response;
+
   try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`API returned ${response.status}`);
-    }
-
-    return (await response.json()) as DevCommand[];
+    response = await fetch(url);
   } catch {
     console.error(`Could not connect to the Dev Library API at ${API_URL}.`);
     console.error('Make sure the API is running.');
     process.exit(1);
   }
+
+  // The API needs a login session, and the CLI can't log in yet (see README).
+  if (response.status === 401) {
+    console.error('The Dev Library API now requires you to log in, and CLI login is not available yet.');
+    console.error('Use the web app for now.');
+    process.exit(1);
+  }
+
+  if (!response.ok) {
+    console.error(`The Dev Library API at ${API_URL} returned status ${response.status}.`);
+    process.exit(1);
+  }
+
+  return (await response.json()) as DevCommand[];
 }
 
 function printCommands(commands: DevCommand[]) {

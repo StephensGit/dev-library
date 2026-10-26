@@ -19,6 +19,22 @@ jobs:
   check:
     runs-on: ubuntu-latest
 
+    # A throwaway Postgres for the API integration tests, matching docker-compose.yml.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dev_library_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -38,6 +54,12 @@ jobs:
 
       - name: Format, lint and typecheck
         run: pnpm check
+
+      # Applies every migration to the test database, then runs the auth and ownership tests.
+      - name: Test API
+        run: pnpm test
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dev_library_test
 
       - name: Build web
         run: pnpm --filter web build

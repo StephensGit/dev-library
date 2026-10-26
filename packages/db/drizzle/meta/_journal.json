@@ -29,6 +29,13 @@
       "when": 1793050432513,
       "tag": "0003_add_ownership_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793051987813,
+      "tag": "0004_require_ownership",
+      "breakpoints": true
     }
   ]
 }
