@@ -8,6 +8,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file=../../.env src/seed.ts",
+    "db:assign-owner": "tsx --env-file=../../.env src/assign-owner.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
