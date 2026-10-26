@@ -179,7 +179,17 @@ PostgreSQL
 
 ### Accounts
 
-Each user has a private library. Registration, login, sessions and logout are handled by [Better Auth](https://www.better-auth.com) at `/api/auth/*` (for example `POST /api/auth/sign-up/email` and `POST /api/auth/sign-in/email`). Logging in sets an `HttpOnly` session cookie; sessions are stored in PostgreSQL, so logging out ends them immediately.
+Each user has a private library. Registration, login, sessions and logout are handled by [Better Auth](https://www.better-auth.com) at `/api/auth/*` (for example `POST /api/auth/sign-up/email` and `POST /api/auth/sign-in/email`). Logging in sets an `HttpOnly`, `SameSite=Lax` session cookie (also `Secure` over HTTPS). Sessions are stored in PostgreSQL, so logging out ends them immediately. A session lasts 7 days and is extended when used after a day.
+
+Rate limits, per client IP and stored in PostgreSQL:
+
+| Endpoint                       | Limit                   |
+| ------------------------------ | ----------------------- |
+| `POST /api/auth/sign-in/email` | 5 per minute            |
+| `POST /api/auth/sign-up/email` | 10 per hour             |
+| Other `/api/auth/*` routes     | 100 per minute per path |
+
+Going over a limit returns **429**.
 
 ### Commands and tags
 
@@ -198,6 +208,10 @@ These routes:
 - only ever read or change the logged-in user's rows; another user's command returns **404**, the same as a missing one
 - reject tag ids that aren't yours with **400**
 - reject `POST`, `PUT` and `DELETE` requests whose `Origin` header is missing or isn't the web app's (**403**), which blocks cross-site request forgery
+- allow 120 requests a minute per client IP (**429** after that), counted in memory
+- reject request bodies over 100 KB (**413**)
+
+Every response includes security headers from [`@fastify/helmet`](https://github.com/fastify/fastify-helmet).
 
 Database transactions ensure that creating a command and its tag relationships either succeeds completely or is rolled back.
 
@@ -573,6 +587,66 @@ pnpm --filter @dev-library/db db:seed you@example.com
 ```
 
 > `docker compose down -v` deletes the local PostgreSQL volume and all local database data.
+
+# Production Requirements
+
+Dev Library isn't deployed yet. Whatever hosting is chosen, these are required.
+
+## One HTTPS origin for the web app and API
+
+The browser must load the web app and call the API from the **same origin**, for example `https://devlibrary.example.com`. A reverse proxy in front of both does what the Vite dev proxy does locally:
+
+| Path            | Goes to                                 |
+| --------------- | --------------------------------------- |
+| `/api/auth/*`   | the API, path unchanged                 |
+| `/api/*`        | the API, with the `/api` prefix removed |
+| everything else | the built web app (`apps/web/dist`)     |
+
+This matters because:
+
+- the session cookie is `SameSite=Lax` and only sent to the site that set it
+- the API only accepts writes whose `Origin` is exactly `BETTER_AUTH_URL`
+- the API sends no CORS headers, so browsers block other sites from reading its responses
+
+## Environment
+
+| Variable             | Production value                                                    |
+| -------------------- | ------------------------------------------------------------------- |
+| `NODE_ENV`           | `production`                                                        |
+| `BETTER_AUTH_URL`    | The public `https://` URL. The API refuses to start with `http://`. |
+| `BETTER_AUTH_SECRET` | At least 32 random characters, never reused from development        |
+| `DATABASE_URL`       | The production database                                             |
+| `TRUST_PROXY`        | Which proxies may report the client IP (below)                      |
+
+The API checks these at startup and refuses to run if they're missing or unsafe.
+
+## Client IPs behind a proxy (`TRUST_PROXY`)
+
+Rate limits are counted per client IP. Behind a reverse proxy every request arrives from the proxy's address, so the API must be told which proxies to believe when they report the real client in `X-Forwarded-For`:
+
+- **unset** (default): trust no proxy. Correct locally and when the API is reached directly.
+- **a hop count**, such as `1`: trust that many proxies directly in front of the API.
+- **proxy addresses**, such as `10.0.0.0/8,127.0.0.1`: trust only proxies at these IPs or ranges.
+
+`TRUST_PROXY=true` is refused, because it would let any client pick its own IP and dodge the rate limits. Getting this wrong in the other direction (no `TRUST_PROXY` behind a proxy) makes every user share one rate-limit bucket, so a few failed logins would lock everyone out.
+
+## One API instance
+
+Command and tag rate limits are counted in the API's memory, so they assume a single API server. Running several would need a shared store.
+
+## Before going public
+
+Still to do before Dev Library is exposed to the internet:
+
+- [ ] **Hosting:** one HTTPS origin with a reverse proxy routing paths as described above, and `TRUST_PROXY` set to match it.
+- [ ] **Secrets:** `NODE_ENV=production`, an `https://` `BETTER_AUTH_URL`, and a fresh `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) stored in the host's secret manager.
+- [ ] **Web app headers:** whatever serves `apps/web/dist` must send its own security headers (Content-Security-Policy, HSTS, `X-Content-Type-Options`, `frame-ancestors`). The API's Helmet headers only cover API responses.
+- [ ] **Database:** automated backups, encryption at rest, and access restricted to the API. Backups contain password hashes, so treat them as secrets; delete old local `pg_dump` files.
+- [ ] **Email verification:** registration currently reveals whether an email already has an account ("User already exists"). Hiding that, and adding password reset, needs an email provider and Better Auth's email verification.
+- [ ] **Per-account protection:** rate limits are per IP, so slow password guessing from many IPs isn't stopped. Consider per-account throttling or alerts.
+- [ ] **CORS:** keep it off. Allowing other origins with credentials would undo the CSRF protection.
+- [ ] **Dependencies:** `pnpm audit --prod` with no unresolved high findings; remove the `fast-uri` override in `pnpm-workspace.yaml` once upstream ranges require the fix.
+- [ ] **Final check:** a manual pass on the deployed site (register, log in, CRUD, log out, rate limits, cookie flags in the browser's dev tools).
 
 # Quick Reference
 

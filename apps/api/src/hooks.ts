@@ -1,6 +1,7 @@
 import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyRequest } from 'fastify';
-import { auth, trustedOrigins, type User } from './auth.js';
+import { auth, type User } from './auth.js';
+import { config } from './config.js';
 import { httpError } from './http-error.js';
 
 declare module 'fastify' {
@@ -33,7 +34,7 @@ export async function verifyOrigin(request: FastifyRequest) {
 
   const origin = request.headers.origin;
 
-  if (!origin || !trustedOrigins.includes(origin)) {
+  if (origin !== config.trustedOrigin) {
     throw httpError(403, 'Invalid origin');
   }
 }

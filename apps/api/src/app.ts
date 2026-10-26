@@ -1,10 +1,19 @@
 import { commandTags, commands, db, tags } from '@dev-library/db';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import { fromNodeHeaders } from 'better-auth/node';
 import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { auth } from './auth.js';
+import { config } from './config.js';
 import { currentUserId, requireAuth, verifyOrigin } from './hooks.js';
 import { httpError } from './http-error.js';
+
+// Requests bigger than this get 413. Commands are short text, so this is generous.
+export const BODY_LIMIT = 100 * 1024;
+
+// Per client IP, across all command and tag routes. Kept in memory: fine for a single API server.
+export const LIBRARY_RATE_LIMIT = { max: 120, timeWindow: '1 minute' };
 
 type CommandBody = {
   title: string;
@@ -136,10 +145,15 @@ function authRoutes(fastify: FastifyInstance) {
       try {
         const url = new URL(request.url, `http://${request.headers.host}`);
 
+        // Better Auth rate-limits by the IP in X-Forwarded-For. Replace whatever the client sent with
+        // the IP Fastify worked out, which only trusts proxies listed in TRUST_PROXY.
+        const headers = fromNodeHeaders(request.headers);
+        headers.set('x-forwarded-for', request.ip);
+
         const response = await auth.handler(
           new Request(url, {
             method: request.method,
-            headers: fromNodeHeaders(request.headers),
+            headers,
             ...(request.body ? { body: JSON.stringify(request.body) } : {}),
           }),
         );
@@ -166,9 +180,12 @@ function authRoutes(fastify: FastifyInstance) {
   });
 }
 
-// Command and tag routes. Every request needs a session and a trusted Origin,
+// Command and tag routes. Every request is rate-limited, needs a session and a trusted Origin,
 // and every query is limited to the logged-in user's rows.
 async function libraryRoutes(fastify: FastifyInstance) {
+  // Added as the first hook so floods are stopped before any session lookup hits the database.
+  await fastify.register(rateLimit, { global: false });
+  fastify.addHook('onRequest', fastify.rateLimit(LIBRARY_RATE_LIMIT));
   fastify.addHook('onRequest', requireAuth);
   fastify.addHook('onRequest', verifyOrigin);
 
@@ -355,7 +372,15 @@ async function libraryRoutes(fastify: FastifyInstance) {
 }
 
 export function buildApp(options: FastifyServerOptions = {}) {
-  const fastify = Fastify(options);
+  const fastify = Fastify({
+    // Decides request.ip: which proxies may report the client's address (see config.ts).
+    trustProxy: config.trustProxy,
+    bodyLimit: BODY_LIMIT,
+    ...options,
+  });
+
+  // Security headers such as X-Content-Type-Options, X-Frame-Options and Strict-Transport-Security.
+  fastify.register(helmet);
 
   fastify.decorateRequest('user', null);
 

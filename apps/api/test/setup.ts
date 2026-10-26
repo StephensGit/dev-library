@@ -14,7 +14,7 @@ beforeAll(async () => {
 // Every test starts with empty tables.
 beforeEach(async () => {
   await pool.query(
-    'truncate users, sessions, accounts, verifications, commands, tags, command_tags restart identity cascade',
+    'truncate users, sessions, accounts, verifications, rate_limits, commands, tags, command_tags restart identity cascade',
   );
 });
 

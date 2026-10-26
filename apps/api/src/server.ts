@@ -1,7 +1,8 @@
 import { buildApp } from './app.js';
+import { loggerOptions } from './logger.js';
 
 const fastify = buildApp({
-  logger: true,
+  logger: loggerOptions,
 });
 
 const start = async () => {
