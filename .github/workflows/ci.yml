@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Read-only access to the repo is all this workflow needs.
+permissions:
+  contents: read
+
+# Cancel an in-progress run when a newer commit is pushed to the same branch/PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      # No `version` input: reads devEngines.packageManager from package.json.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format, lint and typecheck
+        run: pnpm check
+
+      - name: Build web
+        run: pnpm --filter web build
+
+      - name: Build CLI
+        run: pnpm --filter cli build
+
+      - name: Smoke-test CLI
+        run: node apps/cli/dist/index.js --help
