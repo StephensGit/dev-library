@@ -1,6 +1,8 @@
 import { commandTags, commands, db, tags } from '@dev-library/db';
+import { fromNodeHeaders } from 'better-auth/node';
 import { asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import Fastify from 'fastify';
+import { auth } from './auth.js';
 
 const fastify = Fastify({
   logger: true,
@@ -109,6 +111,44 @@ async function assertTagsExist(tx: Transaction, tagIds: number[]) {
     throw httpError(400, `Unknown tag ids: ${missing.join(', ')}`);
   }
 }
+
+// Better Auth handles sign-up, sign-in, sign-out and sessions itself.
+// Fastify has already parsed the body, so rebuild a Fetch API Request for it.
+fastify.route({
+  method: ['GET', 'POST'],
+  url: '/api/auth/*',
+  async handler(request, reply) {
+    try {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+
+      const response = await auth.handler(
+        new Request(url, {
+          method: request.method,
+          headers: fromNodeHeaders(request.headers),
+          ...(request.body ? { body: JSON.stringify(request.body) } : {}),
+        }),
+      );
+
+      reply.status(response.status);
+
+      // A response can set several cookies, so copy each Set-Cookie header separately.
+      response.headers.forEach((value, key) => {
+        if (key !== 'set-cookie') {
+          reply.header(key, value);
+        }
+      });
+      const cookies = response.headers.getSetCookie();
+      if (cookies.length > 0) {
+        reply.header('set-cookie', cookies);
+      }
+
+      return reply.send(response.body ? await response.text() : null);
+    } catch (error) {
+      request.log.error(error, 'Authentication error');
+      throw httpError(500, 'Internal authentication error');
+    }
+  },
+});
 
 fastify.get('/', async () => {
   return {
@@ -292,7 +332,7 @@ fastify.post<{ Body: { name: string } }>(
 const start = async () => {
   try {
     await fastify.listen({
-      port: 3000,
+      port: Number(process.env.PORT ?? 3000),
     });
   } catch (error) {
     fastify.log.error(error);
