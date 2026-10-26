@@ -15,6 +15,8 @@
 .sidebar {
   position: sticky;
   top: 0;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow-y: auto;
   border-right: 1px solid var(--border);
@@ -44,6 +46,7 @@
 
 .tag-nav {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
   padding: 12px 10px;
@@ -819,6 +822,117 @@ textarea.input {
   font-weight: 500;
 }
 
+/* Authentication */
+
+.auth-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px 16px;
+}
+
+.auth-card {
+  width: min(400px, 100%);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.auth-heading {
+  padding: 22px 20px 0;
+}
+
+.auth-heading h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.auth-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.auth-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 20px 22px;
+}
+
+.auth-error {
+  margin: 0;
+}
+
+.auth-submit {
+  width: 100%;
+}
+
+.auth-switch {
+  margin: 0;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: center;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--mint);
+  font-weight: 500;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 12px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.account-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-name,
+.account-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-name {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.account-email {
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+.account-error {
+  margin: 4px 0 0;
+}
+
+.account-logout {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
 /* Responsive: the desktop layout above is unchanged; smaller screens adapt. */
 
 /* Shortcut hints only make sense with a keyboard, so hide them on touch devices. */
@@ -864,6 +978,14 @@ textarea.input {
   }
 
   .tag-nav-heading {
+    display: none;
+  }
+
+  .account {
+    padding: 10px 14px;
+  }
+
+  .account-email {
     display: none;
   }
 

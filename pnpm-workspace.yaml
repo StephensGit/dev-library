@@ -3,3 +3,8 @@ packages:
   - 'packages/*'
 allowBuilds:
   esbuild: true
+
+# Security fix (GHSA advisories for fast-uri < 3.1.9): ajv's range allows the patched version,
+# but pnpm kept the vulnerable one. Remove once ajv or Fastify require it.
+overrides:
+  'fast-uri@>=3.0.0 <3.1.9': ^3.1.9

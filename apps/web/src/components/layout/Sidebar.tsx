@@ -1,7 +1,10 @@
 import type { Command, Tag } from '../../api/api';
+import type { User } from '../../api/auth';
+import { AccountFooter } from '../../features/auth/AccountFooter';
 import { tagColor } from '../../features/tags/tagColors';
 
 type SidebarProps = {
+  user: User;
   tags: Tag[];
   // Undefined while commands are loading or failed, so counts are hidden rather than shown as 0.
   commands?: Command[];
@@ -10,7 +13,7 @@ type SidebarProps = {
   onClearTags: () => void;
 };
 
-export function Sidebar({ tags, commands, selectedTagIds, onToggleTag, onClearTags }: SidebarProps) {
+export function Sidebar({ user, tags, commands, selectedTagIds, onToggleTag, onClearTags }: SidebarProps) {
   const countFor = (tagId: number) =>
     commands?.filter((command) => command.tags.some((tag) => tag.id === tagId)).length;
 
@@ -55,6 +58,8 @@ export function Sidebar({ tags, commands, selectedTagIds, onToggleTag, onClearTa
           );
         })}
       </nav>
+
+      <AccountFooter user={user} />
     </aside>
   );
 }

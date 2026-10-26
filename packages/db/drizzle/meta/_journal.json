@@ -15,6 +15,34 @@
       "when": 1789165110090,
       "tag": "0001_little_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793047221994,
+      "tag": "0002_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793050432513,
+      "tag": "0003_add_ownership_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793051987813,
+      "tag": "0004_require_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793053270384,
+      "tag": "0005_rate_limits",
+      "breakpoints": true
     }
   ]
 }

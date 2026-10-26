@@ -1,105 +1,90 @@
-import { db, pool } from './index.js';
+import { count, eq } from 'drizzle-orm';
+import { db, pool, users } from './index.js';
 import { commandTags, commands, tags } from './schema.js';
 
-async function seed() {
-  // Clear existing development data.
-  await db.delete(commandTags);
-  await db.delete(commands);
-  await db.delete(tags);
+// Adds starter commands and tags to one user's empty library.
+// Usage: pnpm db:seed you@example.com
+// It never deletes anything and does nothing if that user already has commands or tags,
+// so other users' data, and this user's own, is never touched.
 
-  // Insert starter commands and get the created rows back.
-  const insertedCommands = await db
-    .insert(commands)
-    .values([
-      {
-        title: 'List running Docker containers',
-        command: 'docker ps',
-        description: 'Shows all currently running Docker containers.',
-      },
-      {
-        title: 'Open Postgres shell in Docker',
-        command: 'docker compose exec db psql -U postgres -d dev_library',
-        description: 'Opens a PostgreSQL shell inside the local Docker container.',
-      },
-      {
-        title: 'Show Git status',
-        command: 'git status',
-        description: 'Shows the current state of the Git working directory.',
-      },
-      {
-        title: 'Install dependencies',
-        command: 'pnpm install',
-        description: 'Installs dependencies for the project.',
-      },
-    ])
-    .returning();
+const starterTags = ['docker', 'postgres', 'git', 'pnpm'];
 
-  // Insert starter tags and get the created rows back.
-  const insertedTags = await db
-    .insert(tags)
-    .values([{ name: 'docker' }, { name: 'postgres' }, { name: 'git' }, { name: 'pnpm' }])
-    .returning();
+const starterCommands = [
+  {
+    title: 'List running Docker containers',
+    command: 'docker ps',
+    description: 'Shows all currently running Docker containers.',
+    tags: ['docker'],
+  },
+  {
+    title: 'Open Postgres shell in Docker',
+    command: 'docker compose exec db psql -U postgres -d dev_library',
+    description: 'Opens a PostgreSQL shell inside the local Docker container.',
+    tags: ['docker', 'postgres'],
+  },
+  {
+    title: 'Show Git status',
+    command: 'git status',
+    description: 'Shows the current state of the Git working directory.',
+    tags: ['git'],
+  },
+  {
+    title: 'Install dependencies',
+    command: 'pnpm install',
+    description: 'Installs dependencies for the project.',
+    tags: ['pnpm'],
+  },
+];
 
-  // Find the records we need for our relationships.
-  const dockerCommand = insertedCommands.find((command) => command.title === 'List running Docker containers');
+const email = process.argv[2]?.trim().toLowerCase();
 
-  const postgresCommand = insertedCommands.find((command) => command.title === 'Open Postgres shell in Docker');
-
-  const gitCommand = insertedCommands.find((command) => command.title === 'Show Git status');
-
-  const pnpmCommand = insertedCommands.find((command) => command.title === 'Install dependencies');
-
-  const dockerTag = insertedTags.find((tag) => tag.name === 'docker');
-  const postgresTag = insertedTags.find((tag) => tag.name === 'postgres');
-  const gitTag = insertedTags.find((tag) => tag.name === 'git');
-  const pnpmTag = insertedTags.find((tag) => tag.name === 'pnpm');
-
-  // Make sure all required records were created.
-  if (
-    !dockerCommand ||
-    !postgresCommand ||
-    !gitCommand ||
-    !pnpmCommand ||
-    !dockerTag ||
-    !postgresTag ||
-    !gitTag ||
-    !pnpmTag
-  ) {
-    throw new Error('Failed to create seed data');
-  }
-
-  // Connect commands to their tags.
-  await db.insert(commandTags).values([
-    {
-      commandId: dockerCommand.id,
-      tagId: dockerTag.id,
-    },
-    {
-      commandId: postgresCommand.id,
-      tagId: dockerTag.id,
-    },
-    {
-      commandId: postgresCommand.id,
-      tagId: postgresTag.id,
-    },
-    {
-      commandId: gitCommand.id,
-      tagId: gitTag.id,
-    },
-    {
-      commandId: pnpmCommand.id,
-      tagId: pnpmTag.id,
-    },
-  ]);
+if (!email) {
+  console.error('Usage: pnpm db:seed <email>');
+  process.exit(1);
 }
 
-seed()
-  .then(() => {
-    console.log('Seed complete');
-  })
-  .catch((error) => {
-    console.error('Seed failed:', error);
-  })
-  .finally(async () => {
-    await pool.end();
+try {
+  const message = await db.transaction(async (tx) => {
+    const [user] = await tx.select({ id: users.id }).from(users).where(eq(users.email, email));
+
+    if (!user) {
+      throw new Error(`No user with email ${email}. Register in the web app first.`);
+    }
+
+    const [{ value: commandCount }] = await tx
+      .select({ value: count() })
+      .from(commands)
+      .where(eq(commands.userId, user.id));
+    const [{ value: tagCount }] = await tx.select({ value: count() }).from(tags).where(eq(tags.userId, user.id));
+
+    if (commandCount > 0 || tagCount > 0) {
+      return `${email} already has ${commandCount} commands and ${tagCount} tags, so nothing was added.`;
+    }
+
+    const insertedTags = await tx
+      .insert(tags)
+      .values(starterTags.map((name) => ({ userId: user.id, name })))
+      .returning();
+    const tagIds = new Map(insertedTags.map((tag) => [tag.name, tag.id]));
+
+    for (const { tags: tagNames, ...starter } of starterCommands) {
+      const [command] = await tx
+        .insert(commands)
+        .values({ userId: user.id, ...starter })
+        .returning();
+
+      await tx
+        .insert(commandTags)
+        .values(tagNames.map((name) => ({ commandId: command.id, tagId: tagIds.get(name)! })));
+    }
+
+    return `Added ${starterCommands.length} commands and ${starterTags.length} tags for ${email}.`;
   });
+
+  console.log(message);
+} catch (error) {
+  console.error('Seed failed:', error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+} finally {
+  await pool.end();
+}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Command } from './api/api';
+import type { User } from './api/auth';
 import { CommandList } from './features/commands/CommandList';
 import { CommandModal } from './features/commands/CommandModal';
 import { ConfirmDelete } from './features/commands/ConfirmDelete';
@@ -27,7 +28,11 @@ function matchesSearch(command: Command, search: string) {
   );
 }
 
-function App() {
+type AppProps = {
+  user: User;
+};
+
+function App({ user }: AppProps) {
   const { isPending, error, data: commands = [], isFetching, refetch } = useCommands();
   const { data: tags = [] } = useTags();
   const [search, setSearch] = useState('');
@@ -153,6 +158,7 @@ function App() {
   return (
     <div className="app">
       <Sidebar
+        user={user}
         tags={tags}
         commands={commands}
         selectedTagIds={activeTags.map((tag) => tag.id)}
