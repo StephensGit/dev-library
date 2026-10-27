@@ -110,8 +110,6 @@ Terminal commands should be visually prominent and extremely easy to copy.
 
 ## CLI
 
-> **Temporarily unavailable.** The API now requires a login session, and the CLI can't log in yet, so `devlib list` and `devlib search` fail with a "requires you to log in" message (HTTP 401). Use the web app until CLI authentication is added.
-
 Dev Library also includes a command-line interface.
 
 The CLI and web application use the same backend and database.
@@ -128,6 +126,14 @@ Commands can also be listed with:
 
 ```bash
 devlib list
+```
+
+The CLI logs in through the web app, so it never asks for your password:
+
+```bash
+devlib login    # opens the browser; approve the code shown in your terminal
+devlib whoami   # shows who you're logged in as
+devlib logout   # ends the CLI's session
 ```
 
 Both interfaces operate on the same library:
@@ -187,9 +193,26 @@ Rate limits, per client IP and stored in PostgreSQL:
 | ------------------------------ | ----------------------- |
 | `POST /api/auth/sign-in/email` | 5 per minute            |
 | `POST /api/auth/sign-up/email` | 10 per hour             |
+| `GET /api/auth/device`         | 20 per 10 minutes       |
 | Other `/api/auth/*` routes     | 100 per minute per path |
 
 Going over a limit returns **429**.
+
+### CLI login (device authorization)
+
+`devlib login` uses Better Auth's [device authorization](https://www.better-auth.com/docs/plugins/device-authorization) plugin ([RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628)):
+
+1. The CLI calls `POST /api/auth/device/code` and shows a short code plus a link to the web app's `/device` page.
+2. The user signs in to the web app as usual, checks that the page shows the same code as the terminal, and clicks **Approve** (or **Deny**).
+3. Meanwhile the CLI polls `POST /api/auth/device/token`. Once approved, it receives a **Better Auth session token**: the same kind of token as the browser's session cookie, in its own `sessions` row. It's returned in a field called `access_token` because RFC 8628 names it that, but it isn't an OAuth access token or JWT, and there's no refresh token. It lasts 7 days and is extended when used, like a browser session.
+
+Codes expire after 10 minutes and can be used once. Only the client id `devlib-cli` may start a login, only a signed-in user can approve it, and only the first user to open a code can approve or deny it. `GET /api/auth/device` is limited to 20 lookups per IP per 10 minutes.
+
+The CLI sends the token as `Authorization: Bearer <token>`. Because another website can't make a browser send that header, a request authenticated by a valid Bearer token doesn't need an `Origin` header. Everything else still does:
+
+- a request with both a cookie and an `Authorization` header is rejected with **400**
+- on `/api/auth/*`, Bearer tokens are only accepted by `get-session` and `sign-out` (**403** elsewhere), so CLI logins can only be approved from a browser
+- the Bearer plugin's `set-auth-token` response header is removed, so session tokens never reach page JavaScript
 
 ### Commands and tags
 
@@ -204,10 +227,10 @@ Going over a limit returns **429**.
 
 These routes:
 
-- return **401** without a valid session cookie
+- return **401** without a valid session cookie or Bearer token
 - only ever read or change the logged-in user's rows; another user's command returns **404**, the same as a missing one
 - reject tag ids that aren't yours with **400**
-- reject `POST`, `PUT` and `DELETE` requests whose `Origin` header is missing or isn't the web app's (**403**), which blocks cross-site request forgery
+- reject cookie-authenticated `POST`, `PUT` and `DELETE` requests whose `Origin` header is missing or isn't the web app's (**403**), which blocks cross-site request forgery
 - allow 120 requests a minute per client IP (**429** after that), counted in memory
 - reject request bodies over 100 KB (**413**)
 
@@ -518,19 +541,47 @@ List saved commands:
 devlib list
 ```
 
-Search the library:
+## 3. Log in
+
+The API and web app must both be running (see above). Then:
+
+```bash
+devlib login
+```
+
+Your browser opens the web app's approval page. Log in if asked, check the code matches the one in your terminal, and click **Approve**. Use `devlib login --no-browser` to print the link without opening it.
+
+```bash
+devlib whoami   # who you're logged in as, and which API
+devlib logout   # end the session on the server and forget it locally
+```
+
+If the API can't be reached during `devlib logout`, the saved login is still removed, with a warning that the session stays active on the server until it expires (within 7 days).
+
+## 4. Use the CLI
+
+List your saved commands:
+
+```bash
+devlib list
+```
+
+Search them:
 
 ```bash
 devlib search docker
 ```
 
-For example:
+When the login expires or is revoked, these commands say so and ask you to run `devlib login` again.
 
-```bash
-devlib search postgres
-```
+## Configuration
 
-The CLI communicates with the Fastify API, so the local API must be running before using commands that retrieve data.
+| Variable          | Default                 | Purpose                                                                                  |
+| ----------------- | ----------------------- | ---------------------------------------------------------------------------------------- |
+| `DEVLIB_API_URL`  | `http://localhost:3000` | The API to use. Must be `https://`, except for `localhost` and other loopback addresses. |
+| `XDG_CONFIG_HOME` | `~/.config`             | Where the login is saved, in `devlib/credentials.json`.                                  |
+
+The saved login holds the session token, the API URL and your name and email. The `devlib` directory is created with `0700` permissions and the file with `0600`, and the file is written to a temporary file first and then renamed. The CLI refuses to use a login file that is a symlink, belongs to another user or can be read by others. A login is only ever sent to the API it came from, and the CLI never follows redirects. If you change `DEVLIB_API_URL`, run `devlib login` again.
 
 # Stopping the Project
 

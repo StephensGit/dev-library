@@ -1,0 +1,9 @@
+{
+  // Typechecks the tests too; tsconfig.json only builds src into dist.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": ["src", "test"]
+}

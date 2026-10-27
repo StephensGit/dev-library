@@ -80,6 +80,25 @@ export const rateLimits = pgTable('rate_limits', {
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
 });
 
+// Pending CLI logins (Better Auth's device authorization plugin). Each row lives until the CLI
+// collects its session or the code expires; user_id is set once a signed-in user opens the code.
+export const deviceCodes = pgTable(
+  'device_codes',
+  {
+    id: text('id').primaryKey(),
+    deviceCode: text('device_code').notNull().unique(),
+    userCode: text('user_code').notNull().unique(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at').notNull(),
+    status: text('status').notNull(),
+    lastPolledAt: timestamp('last_polled_at'),
+    pollingInterval: integer('polling_interval'),
+    clientId: text('client_id'),
+    scope: text('scope'),
+  },
+  (table) => [index('device_codes_userId_idx').on(table.userId)],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),

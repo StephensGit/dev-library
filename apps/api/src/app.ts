@@ -6,7 +6,7 @@ import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { auth } from './auth.js';
 import { config } from './config.js';
-import { currentUserId, requireAuth, verifyOrigin } from './hooks.js';
+import { credentialType, currentUserId, requireAuth, verifyOrigin } from './hooks.js';
 import { httpError } from './http-error.js';
 
 // Requests bigger than this get 413. Commands are short text, so this is generous.
@@ -135,13 +135,40 @@ function isUniqueViolation(error: unknown) {
   return (cause?.code ?? code) === '23505';
 }
 
-// Better Auth handles sign-up, sign-in, sign-out and sessions itself.
+// The only auth endpoints the CLI calls with its Bearer token: whoami and logout.
+// Everything else, including approving a device login, needs the browser's session cookie.
+const BEARER_AUTH_PATHS = new Set(['/api/auth/get-session', '/api/auth/sign-out']);
+
+// The bearer plugin copies every new session token into this response header, including the web app's
+// on sign-in. JavaScript could read it there, defeating the HttpOnly cookie, so it never leaves the API.
+// The CLI gets its token from the /device/token response body instead.
+const HIDDEN_AUTH_HEADERS = new Set(['set-auth-token']);
+
+function withoutHiddenHeaders(exposeHeaders: string) {
+  return exposeHeaders
+    .split(',')
+    .map((header) => header.trim())
+    .filter((header) => header && !HIDDEN_AUTH_HEADERS.has(header.toLowerCase()))
+    .join(', ');
+}
+
+// Better Auth handles sign-up, sign-in, sign-out, sessions and device logins itself.
 // Fastify has already parsed the body, so rebuild a Fetch API Request for it.
 function authRoutes(fastify: FastifyInstance) {
   fastify.route({
     method: ['GET', 'POST'],
     url: '/api/auth/*',
     async handler(request, reply) {
+      const method = credentialType(request.headers);
+
+      if (method === 'both') {
+        throw httpError(400, 'Send either a session cookie or a Bearer token, not both');
+      }
+
+      if (method === 'bearer' && !BEARER_AUTH_PATHS.has(request.url.split('?')[0])) {
+        throw httpError(403, 'This endpoint does not accept Bearer tokens');
+      }
+
       try {
         const url = new URL(request.url, `http://${request.headers.host}`);
 
@@ -162,9 +189,19 @@ function authRoutes(fastify: FastifyInstance) {
 
         // A response can set several cookies, so copy each Set-Cookie header separately.
         response.headers.forEach((value, key) => {
-          if (key !== 'set-cookie') {
-            reply.header(key, value);
+          if (key === 'set-cookie' || HIDDEN_AUTH_HEADERS.has(key)) {
+            return;
           }
+
+          if (key === 'access-control-expose-headers') {
+            const exposed = withoutHiddenHeaders(value);
+            if (exposed) {
+              reply.header(key, exposed);
+            }
+            return;
+          }
+
+          reply.header(key, value);
         });
         const cookies = response.headers.getSetCookie();
         if (cookies.length > 0) {
@@ -383,6 +420,7 @@ export function buildApp(options: FastifyServerOptions = {}) {
   fastify.register(helmet);
 
   fastify.decorateRequest('user', null);
+  fastify.decorateRequest('authMethod', null);
 
   authRoutes(fastify);
 

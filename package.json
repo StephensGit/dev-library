@@ -9,7 +9,7 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck",
-    "test": "pnpm --filter api test"
+    "test": "pnpm --filter api test && pnpm --filter cli test"
   },
   "devEngines": {
     "packageManager": {
