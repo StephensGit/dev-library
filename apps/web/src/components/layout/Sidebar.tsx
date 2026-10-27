@@ -1,6 +1,7 @@
 import type { Command, Tag } from '../../api/api';
 import type { User } from '../../api/auth';
 import { AccountFooter } from '../../features/auth/AccountFooter';
+import { ActionMenu } from '../ui/ActionMenu';
 import { tagColor } from '../../features/tags/tagColors';
 
 type SidebarProps = {
@@ -11,9 +12,23 @@ type SidebarProps = {
   selectedTagIds: number[];
   onToggleTag: (tagId: number) => void;
   onClearTags: () => void;
+  onRenameTag: (tag: Tag) => void;
+  onDeleteTag: (tag: Tag) => void;
+  // Confirmation of the last rename or delete; announced to screen readers.
+  notice: string;
 };
 
-export function Sidebar({ user, tags, commands, selectedTagIds, onToggleTag, onClearTags }: SidebarProps) {
+export function Sidebar({
+  user,
+  tags,
+  commands,
+  selectedTagIds,
+  onToggleTag,
+  onClearTags,
+  onRenameTag,
+  onDeleteTag,
+  notice,
+}: SidebarProps) {
   const countFor = (tagId: number) =>
     commands?.filter((command) => command.tags.some((tag) => tag.id === tagId)).length;
 
@@ -46,18 +61,31 @@ export function Sidebar({ user, tags, commands, selectedTagIds, onToggleTag, onC
         {tags.map((tag) => {
           const checked = selectedTagIds.includes(tag.id);
 
+          // The menu sits beside the label, not inside it, so opening it doesn't toggle the filter.
           return (
-            <label key={tag.id} className="tag-nav-item" data-checked={checked}>
-              <span className="tag-nav-name">
-                <input type="checkbox" className="checkbox" checked={checked} onChange={() => onToggleTag(tag.id)} />
-                <span className="tag-dot" style={{ background: tagColor(tag.name) }} />
-                {tag.name}
-              </span>
-              <span className="tag-nav-count">{countFor(tag.id)}</span>
-            </label>
+            <div key={tag.id} className="tag-nav-item tag-nav-row" data-checked={checked}>
+              <label className="tag-nav-label">
+                <span className="tag-nav-name">
+                  <input type="checkbox" className="checkbox" checked={checked} onChange={() => onToggleTag(tag.id)} />
+                  <span className="tag-dot" style={{ background: tagColor(tag.name) }} />
+                  {tag.name}
+                </span>
+                <span className="tag-nav-count">{countFor(tag.id)}</span>
+              </label>
+              <ActionMenu
+                label={`tag ${tag.name}`}
+                editLabel="Rename"
+                onEdit={() => onRenameTag(tag)}
+                onDelete={() => onDeleteTag(tag)}
+              />
+            </div>
           );
         })}
       </nav>
+
+      <p className="tag-nav-status" role="status">
+        {notice}
+      </p>
 
       <AccountFooter user={user} />
     </aside>

@@ -93,8 +93,36 @@
   color: var(--text);
 }
 
-label.tag-nav-item {
+/* A tag row: the label toggles the filter, the action menu sits beside it. */
+.tag-nav-row {
+  gap: 2px;
+  padding-right: 4px;
+}
+
+.tag-nav-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
   cursor: pointer;
+}
+
+.tag-nav-row .action-menu {
+  margin: 0;
+}
+
+.tag-nav-status {
+  margin: 0;
+  padding: 0 20px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.tag-nav-status:not(:empty) {
+  padding-bottom: 12px;
 }
 
 .tag-nav-item:hover {
@@ -489,6 +517,7 @@ label.tag-nav-item {
 }
 
 .command-row:hover .action-menu,
+.tag-nav-row:hover .action-menu,
 .action-menu:focus-within,
 .action-menu[data-open='true'] {
   opacity: 1;
@@ -500,10 +529,9 @@ label.tag-nav-item {
   }
 }
 
+/* Fixed, and placed by ActionMenu, so scrolling containers don't clip it. */
 .menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  position: fixed;
   z-index: 20;
   min-width: 140px;
   padding: 4px;
@@ -1015,6 +1043,10 @@ textarea.input {
 
   .tag-nav-heading {
     display: none;
+  }
+
+  .tag-nav-status {
+    padding: 0 14px;
   }
 
   .account {

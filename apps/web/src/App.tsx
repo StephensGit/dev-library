@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Command } from './api/api';
+import type { Command, Tag } from './api/api';
 import type { User } from './api/auth';
 import { CommandList } from './features/commands/CommandList';
 import { CommandModal } from './features/commands/CommandModal';
@@ -10,6 +10,8 @@ import { LoadError } from './features/commands/LoadError';
 import { LoadingRows } from './features/commands/LoadingRows';
 import { NoMatches } from './features/commands/NoMatches';
 import { Sidebar } from './components/layout/Sidebar';
+import { DeleteTag } from './features/tags/DeleteTag';
+import { RenameTag } from './features/tags/RenameTag';
 import { useCommands, useTags } from './api/queries/command-tag';
 import './App.css';
 
@@ -40,6 +42,10 @@ function App({ user }: AppProps) {
   const [selectedCommandId, setSelectedCommandId] = useState<number | null>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  // Kept as objects, not ids, so the dialog stays open until its request finishes and the lists refetch.
+  const [renamingTag, setRenamingTag] = useState<Tag | null>(null);
+  const [deletingTag, setDeletingTag] = useState<Tag | null>(null);
+  const [tagNotice, setTagNotice] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const selectedCopyRef = useRef<HTMLButtonElement>(null);
 
@@ -66,7 +72,17 @@ function App({ user }: AppProps) {
   // -1 when nothing is selected or the selected command is filtered out.
   const selectedIndex = visibleCommands.findIndex((command) => command.id === selectedCommandId);
 
-  const dialogOpen = modalOpen || deleting !== undefined;
+  const dialogOpen = modalOpen || deleting !== undefined || renamingTag !== null || deletingTag !== null;
+
+  // Clear the sidebar's success message after a few seconds.
+  useEffect(() => {
+    if (!tagNotice) {
+      return;
+    }
+
+    const timeout = setTimeout(() => setTagNotice(''), 4000);
+    return () => clearTimeout(timeout);
+  }, [tagNotice]);
 
   // Shortcuts, unless a dialog is open:
   // "/" focuses search, "N" opens the add modal, ↑/↓ move the selection and Enter copies it.
@@ -128,6 +144,19 @@ function App({ user }: AppProps) {
     setSelectedTagIds((ids) => (ids.includes(tagId) ? ids.filter((id) => id !== tagId) : [...ids, tagId]));
   }
 
+  // The id doesn't change, so a renamed tag stays selected.
+  function handleTagRenamed(tag: Tag) {
+    setRenamingTag(null);
+    setTagNotice(`Renamed tag to ${tag.name}`);
+  }
+
+  // Only called once the API has confirmed the delete.
+  function handleTagDeleted(tag: Tag) {
+    setSelectedTagIds((ids) => ids.filter((id) => id !== tag.id));
+    setDeletingTag(null);
+    setTagNotice(`Deleted tag ${tag.name}`);
+  }
+
   function clearFilters() {
     setSearch('');
     setSelectedTagIds([]);
@@ -164,6 +193,9 @@ function App({ user }: AppProps) {
         selectedTagIds={activeTags.map((tag) => tag.id)}
         onToggleTag={toggleTag}
         onClearTags={() => setSelectedTagIds([])}
+        onRenameTag={setRenamingTag}
+        onDeleteTag={setDeletingTag}
+        notice={tagNotice}
       />
 
       <div className="main">
@@ -181,6 +213,17 @@ function App({ user }: AppProps) {
       )}
 
       {deleting && <ConfirmDelete command={deleting} onClose={() => setDeletingId(null)} />}
+
+      {renamingTag && <RenameTag tag={renamingTag} onClose={() => setRenamingTag(null)} onRenamed={handleTagRenamed} />}
+
+      {deletingTag && (
+        <DeleteTag
+          tag={deletingTag}
+          commands={isPending || error ? undefined : commands}
+          onClose={() => setDeletingTag(null)}
+          onDeleted={handleTagDeleted}
+        />
+      )}
     </div>
   );
 }
