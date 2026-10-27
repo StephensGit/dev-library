@@ -193,6 +193,7 @@ Rate limits, per client IP and stored in PostgreSQL:
 | ------------------------------ | ----------------------- |
 | `POST /api/auth/sign-in/email` | 5 per minute            |
 | `POST /api/auth/sign-up/email` | 10 per hour             |
+| `GET /api/auth/device`         | 20 per 10 minutes       |
 | Other `/api/auth/*` routes     | 100 per minute per path |
 
 Going over a limit returns **429**.
@@ -205,7 +206,7 @@ Going over a limit returns **429**.
 2. The user signs in to the web app as usual, checks that the page shows the same code as the terminal, and clicks **Approve** (or **Deny**).
 3. Meanwhile the CLI polls `POST /api/auth/device/token`. Once approved, it receives a **Better Auth session token**: the same kind of token as the browser's session cookie, in its own `sessions` row. It's returned in a field called `access_token` because RFC 8628 names it that, but it isn't an OAuth access token or JWT, and there's no refresh token. It lasts 7 days and is extended when used, like a browser session.
 
-Codes expire after 10 minutes and can be used once. Only the client id `devlib-cli` may start a login, only a signed-in user can approve it, and only the first user to open a code can approve or deny it. `GET /api/auth/device` is limited to 5 lookups per IP per 10 minutes.
+Codes expire after 10 minutes and can be used once. Only the client id `devlib-cli` may start a login, only a signed-in user can approve it, and only the first user to open a code can approve or deny it. `GET /api/auth/device` is limited to 20 lookups per IP per 10 minutes.
 
 The CLI sends the token as `Authorization: Bearer <token>`. Because another website can't make a browser send that header, a request authenticated by a valid Bearer token doesn't need an `Origin` header. Everything else still does:
 

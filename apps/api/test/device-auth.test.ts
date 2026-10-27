@@ -448,3 +448,48 @@ describe('logging', () => {
     }
   });
 });
+
+describe('rate limiting: the /device approval page', () => {
+  const lookUp = (userCode: string, remoteAddress: string) =>
+    app.inject({ method: 'GET', url: `/api/auth/device?user_code=${userCode}`, remoteAddress });
+
+  it('allows 20 code lookups per IP in 10 minutes, then returns 429', async () => {
+    const { user_code } = await startLogin();
+
+    for (let lookup = 0; lookup < 20; lookup++) {
+      expect((await lookUp(user_code, '192.0.2.50')).statusCode).toBe(200);
+    }
+
+    const limited = await lookUp(user_code, '192.0.2.50');
+    expect(limited.statusCode).toBe(429);
+    expect(Number(limited.headers['x-retry-after'])).toBeGreaterThan(0);
+
+    // Counted per IP, so other people aren't affected.
+    expect((await lookUp(user_code, '192.0.2.51')).statusCode).toBe(200);
+  });
+
+  it('allows lookups again once the 10 minutes have passed', async () => {
+    const { user_code } = await startLogin();
+    for (let lookup = 0; lookup < 20; lookup++) {
+      await lookUp(user_code, '192.0.2.52');
+    }
+    expect((await lookUp(user_code, '192.0.2.52')).statusCode).toBe(429);
+
+    await pool.query(`update rate_limits set last_request = last_request - 9 * 60 * 1000`);
+    expect((await lookUp(user_code, '192.0.2.52')).statusCode).toBe(429);
+
+    await pool.query(`update rate_limits set last_request = last_request - 61 * 1000`);
+    expect((await lookUp(user_code, '192.0.2.52')).statusCode).toBe(200);
+  });
+
+  it("doesn't change the limits for starting a login or polling for it", async () => {
+    const { user_code, device_code } = await startLogin();
+    for (let lookup = 0; lookup < 21; lookup++) {
+      await lookUp(user_code, '127.0.0.1');
+    }
+
+    // Same IP (app.inject's default), but different paths with their own counters.
+    expect((await requestCode()).statusCode).toBe(200);
+    expect((await poll(device_code)).json().error).toBe('authorization_pending');
+  });
+});

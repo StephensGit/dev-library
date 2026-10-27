@@ -47,6 +47,10 @@ export const auth = betterAuth({
     customRules: {
       '/sign-in/email': { window: MINUTE, max: 5 },
       '/sign-up/email': { window: HOUR, max: 10 },
+      // The /device approval page looks up its code here. The plugin's default (5 per code lifetime) locked
+      // people out after a few refreshes or typos; 8-character codes are far too many to guess at 20 tries.
+      // Only this exact path: /device/code and /device/token keep the general limit and polling rules.
+      '/device': { window: 10 * MINUTE, max: 20 },
     },
   },
   plugins: [
