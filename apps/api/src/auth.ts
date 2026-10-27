@@ -1,11 +1,20 @@
-import { accounts, db, rateLimits, sessions, users, verifications } from '@dev-library/db';
+import { accounts, db, deviceCodes, rateLimits, sessions, users, verifications } from '@dev-library/db';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { bearer, deviceAuthorization } from 'better-auth/plugins';
 import { config } from './config.js';
 
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+
+// The only client allowed to start a device login. It isn't a secret (it ships with the CLI);
+// it just stops the endpoint being used for anything else.
+export const CLI_CLIENT_ID = 'devlib-cli';
+
+// Where the CLI sends the user to approve a login: the web app's /device page, not the API.
+// BETTER_AUTH_URL is the browser-facing origin (the Vite dev server locally).
+export const DEVICE_VERIFICATION_URL = `${config.trustedOrigin}/device`;
 
 // Routes are served at the default basePath, /api/auth.
 export const auth = betterAuth({
@@ -14,9 +23,9 @@ export const auth = betterAuth({
   trustedOrigins: [config.trustedOrigin],
   database: drizzleAdapter(db, {
     provider: 'pg',
-    // Match our plural table names: users, sessions, accounts, verifications, rate_limits.
+    // Match our plural table names: users, sessions, accounts, verifications, rate_limits, device_codes.
     usePlural: true,
-    schema: { users, sessions, accounts, verifications, rateLimits },
+    schema: { users, sessions, accounts, verifications, rateLimits, deviceCodes },
   }),
   emailAndPassword: {
     enabled: true,
@@ -40,6 +49,19 @@ export const auth = betterAuth({
       '/sign-up/email': { window: HOUR, max: 10 },
     },
   },
+  plugins: [
+    // CLI login (RFC 8628): the CLI gets a code, the user approves it on the web app's /device page,
+    // and the CLI receives an ordinary Better Auth session token. No OAuth access or refresh tokens.
+    deviceAuthorization({
+      expiresIn: '10m',
+      interval: '5s',
+      validateClient: (clientId) => clientId === CLI_CLIENT_ID,
+      verificationUri: DEVICE_VERIFICATION_URL,
+    }),
+    // Accepts that session token as "Authorization: Bearer <token>". Its set-auth-token response
+    // header would expose browser session tokens to JavaScript, so the auth route strips it (app.ts).
+    bearer(),
+  ],
   advanced: {
     // Better Auth skips its Origin check when NODE_ENV is "test"; keep it on everywhere.
     disableOriginCheck: false,
