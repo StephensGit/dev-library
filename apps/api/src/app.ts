@@ -2,8 +2,8 @@ import { commandTags, commands, db, tags } from '@dev-library/db';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { fromNodeHeaders } from 'better-auth/node';
-import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import { and, asc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
+import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyServerOptions } from 'fastify';
 import { auth } from './auth.js';
 import { config } from './config.js';
 import { credentialType, currentUserId, requireAuth, verifyOrigin } from './hooks.js';
@@ -55,6 +55,17 @@ const tagBodySchema = {
     name: { type: 'string', minLength: 1, maxLength: 50, pattern: '\\S' },
   },
 };
+
+// Fastify's validator coerces types, so { "name": 42 } would pass the schema above as "42".
+// Coercion is needed elsewhere (URL params arrive as strings), so tag routes reject a non-string name
+// before validation runs instead. A missing name is left to the schema's `required`.
+async function requireStringTagName(request: FastifyRequest) {
+  const body = request.body as { name?: unknown } | null;
+
+  if (body && typeof body === 'object' && 'name' in body && typeof body.name !== 'string') {
+    throw httpError(400, 'body/name must be string');
+  }
+}
 
 const idParamsSchema = {
   type: 'object',
@@ -377,6 +388,7 @@ async function libraryRoutes(fastify: FastifyInstance) {
       schema: {
         body: tagBodySchema,
       },
+      preValidation: requireStringTagName,
     },
     async (request, reply) => {
       const userId = currentUserId(request);
@@ -404,6 +416,78 @@ async function libraryRoutes(fastify: FastifyInstance) {
         }
         throw error;
       }
+    },
+  );
+
+  // Renames a tag; its command links are untouched. Changing only the capitalisation is allowed.
+  // Another user's tag gets the same 404 as a missing one.
+  fastify.put<{ Params: IdParams; Body: { name: string } }>(
+    '/tags/:id',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: tagBodySchema,
+      },
+      preValidation: requireStringTagName,
+    },
+    async (request) => {
+      const userId = currentUserId(request);
+      const { id } = request.params;
+      const name = request.body.name.trim();
+      const duplicate = httpError(409, `Tag "${name}" already exists`);
+
+      // Same clear-error check as creating, ignoring the tag being renamed.
+      const [existingTag] = await db
+        .select({ id: tags.id })
+        .from(tags)
+        .where(and(eq(tags.userId, userId), eq(sql`lower(${tags.name})`, name.toLowerCase()), ne(tags.id, id)));
+
+      if (existingTag) {
+        throw duplicate;
+      }
+
+      try {
+        const [updatedTag] = await db
+          .update(tags)
+          .set({ name })
+          .where(and(eq(tags.id, id), eq(tags.userId, userId)))
+          .returning({ id: tags.id, name: tags.name });
+
+        if (!updatedTag) {
+          throw httpError(404, `Tag ${id} not found`);
+        }
+
+        return updatedTag;
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          throw duplicate;
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.delete<{ Params: IdParams }>(
+    '/tags/:id',
+    {
+      schema: {
+        params: idParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      // Command links are removed by the foreign key's ON DELETE CASCADE; the commands themselves stay.
+      const [deletedTag] = await db
+        .delete(tags)
+        .where(and(eq(tags.id, id), eq(tags.userId, currentUserId(request))))
+        .returning();
+
+      if (!deletedTag) {
+        throw httpError(404, `Tag ${id} not found`);
+      }
+
+      return reply.code(204).send();
     },
   );
 }

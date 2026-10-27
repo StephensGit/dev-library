@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { Command } from '../../api/api';
-import { ActionMenu } from './ActionMenu';
+import { ActionMenu } from '../../components/ui/ActionMenu';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { TagBadge } from '../tags/TagBadge';
 
