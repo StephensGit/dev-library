@@ -10,7 +10,7 @@ import Fastify, {
   type FastifyRequest,
   type FastifyServerOptions,
 } from 'fastify';
-import { extname, sep } from 'node:path';
+import { extname, relative, sep } from 'node:path';
 import { auth } from './auth.js';
 import { config } from './config.js';
 import { credentialType, currentUserId, requireAuth, verifyOrigin } from './hooks.js';
@@ -532,11 +532,14 @@ function healthRoute(fastify: FastifyInstance) {
   });
 }
 
-// Built files have content hashes in their names (assets/index-3f9a.js), so they can be cached forever.
-// index.html must always be revalidated so a new deploy is picked up.
-function setCacheHeaders(reply: FastifyReply, path: string) {
-  const immutable = path.includes(`${sep}assets${sep}`);
-  reply.header('cache-control', immutable ? 'public, max-age=31536000, immutable' : 'no-cache');
+// Built files in the web app's own assets folder have content hashes in their names (assets/index-3f9a.js),
+// so they can be cached forever. Everything else, including index.html, must be revalidated so a new deploy
+// is picked up. The check uses the path inside webRoot: the server's own folder may contain "assets" too.
+function cacheHeaders(webRoot: string) {
+  return (reply: FastifyReply, path: string) => {
+    const immutable = relative(webRoot, path).split(sep)[0] === 'assets';
+    reply.header('cache-control', immutable ? 'public, max-age=31536000, immutable' : 'no-cache');
+  };
 }
 
 // Serves the built web app. Unknown page paths such as /device get index.html so the app can show them;
@@ -549,7 +552,7 @@ function webAppRoutes(fastify: FastifyInstance, webRoot: string) {
     root: webRoot,
     wildcard: false,
     cacheControl: false,
-    setHeaders: setCacheHeaders,
+    setHeaders: cacheHeaders(webRoot),
   });
 
   fastify.setNotFoundHandler(async (request, reply) => {

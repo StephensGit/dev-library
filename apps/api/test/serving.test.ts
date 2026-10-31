@@ -6,21 +6,31 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { client, signUp } from './helpers.js';
 
-// A stand-in for apps/web/dist: index.html plus one hashed asset.
-const webRoot = await mkdtemp(join(tmpdir(), 'devlib-web-'));
-await mkdir(join(webRoot, 'assets'));
-await writeFile(join(webRoot, 'index.html'), '<!doctype html><div id="root"></div>');
-await writeFile(join(webRoot, 'assets', 'index-abc123.js'), 'console.log("app")');
-await writeFile(join(webRoot, 'favicon.svg'), '<svg></svg>');
+// A stand-in for apps/web/dist: index.html, one hashed asset and one unhashed file.
+async function createWebRoot(webRoot: string) {
+  await mkdir(join(webRoot, 'assets'), { recursive: true });
+  await writeFile(join(webRoot, 'index.html'), '<!doctype html><div id="root"></div>');
+  await writeFile(join(webRoot, 'assets', 'index-abc123.js'), 'console.log("app")');
+  await writeFile(join(webRoot, 'favicon.svg'), '<svg></svg>');
+  return webRoot;
+}
+
+const tempDir = await mkdtemp(join(tmpdir(), 'devlib-web-'));
+const webRoot = await createWebRoot(join(tempDir, 'public'));
+// Deployed somewhere whose own path contains an "assets" folder, e.g. /srv/assets/app/dist/public.
+const webRootUnderAssets = await createWebRoot(join(tempDir, 'assets', 'app', 'public'));
 
 const app = buildApp({ webRoot });
+const appUnderAssets = buildApp({ webRoot: webRootUnderAssets });
 const apiOnly = buildApp();
 
-beforeAll(() => Promise.all([app.ready(), apiOnly.ready()]));
+beforeAll(() => Promise.all([app.ready(), appUnderAssets.ready(), apiOnly.ready()]));
 afterAll(async () => {
-  await Promise.all([app.close(), apiOnly.close()]);
-  await rm(webRoot, { recursive: true, force: true });
+  await Promise.all([app.close(), appUnderAssets.close(), apiOnly.close()]);
+  await rm(tempDir, { recursive: true, force: true });
 });
+
+const ONE_YEAR = 'public, max-age=31536000, immutable';
 
 describe('health check', () => {
   it('reports ok when the database answers', async () => {
@@ -58,7 +68,30 @@ describe('serving the web app', () => {
     const response = await app.inject({ method: 'GET', url: '/assets/index-abc123.js' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(response.headers['cache-control']).toBe(ONE_YEAR);
+  });
+
+  it('revalidates files outside the assets folder', async () => {
+    const response = await app.inject({ method: 'GET', url: '/favicon.svg' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-cache');
+  });
+
+  describe('when the deployment folder itself is inside an "assets" folder', () => {
+    it.each(['/', '/index.html', '/device', '/favicon.svg'])('still revalidates %s', async (url) => {
+      const response = await appUnderAssets.inject({ method: 'GET', url });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['cache-control']).toBe('no-cache');
+    });
+
+    it('still caches hashed assets forever', async () => {
+      const response = await appUnderAssets.inject({ method: 'GET', url: '/assets/index-abc123.js' });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['cache-control']).toBe(ONE_YEAR);
+    });
   });
 
   it('serves index.html for app pages such as /device, so the web app can show them', async () => {
