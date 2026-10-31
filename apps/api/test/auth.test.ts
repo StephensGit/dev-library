@@ -21,7 +21,7 @@ describe('registration, login and logout', () => {
 
     // The session row is deleted, so the old cookie no longer works.
     expect((await api.get('/api/auth/get-session')).json()).toBeNull();
-    expect((await api.get('/commands')).statusCode).toBe(401);
+    expect((await api.get('/api/commands')).statusCode).toBe(401);
   });
 
   it('logs in with the right password only', async () => {
@@ -40,7 +40,7 @@ describe('registration, login and logout', () => {
 
     const right = await login(PASSWORD);
     expect(right.statusCode).toBe(200);
-    expect((await client(app, sessionCookie(right.headers['set-cookie'])).get('/commands')).statusCode).toBe(200);
+    expect((await client(app, sessionCookie(right.headers['set-cookie'])).get('/api/commands')).statusCode).toBe(200);
   });
 
   it('rejects passwords shorter than 12 characters', async () => {
@@ -57,12 +57,12 @@ describe('registration, login and logout', () => {
 
 describe('unauthenticated requests', () => {
   it.each([
-    ['GET', '/commands'],
-    ['POST', '/commands'],
-    ['PUT', '/commands/1'],
-    ['DELETE', '/commands/1'],
-    ['GET', '/tags'],
-    ['POST', '/tags'],
+    ['GET', '/api/commands'],
+    ['POST', '/api/commands'],
+    ['PUT', '/api/commands/1'],
+    ['DELETE', '/api/commands/1'],
+    ['GET', '/api/tags'],
+    ['POST', '/api/tags'],
   ] as const)('%s %s returns 401 without a session', async (method, url) => {
     const response = await app.inject({ method, url, headers: { origin: TRUSTED_ORIGIN }, payload: {} });
 
@@ -70,7 +70,7 @@ describe('unauthenticated requests', () => {
   });
 
   it('returns 401 for a forged session cookie', async () => {
-    const response = await client(app, 'better-auth.session_token=forged.value').get('/commands');
+    const response = await client(app, 'better-auth.session_token=forged.value').get('/api/commands');
 
     expect(response.statusCode).toBe(401);
   });
@@ -80,34 +80,39 @@ describe('CSRF protection', () => {
   it('rejects writes with a missing or untrusted Origin', async () => {
     const alice = await signUp(app, 'Alice');
     const write = (headers: Record<string, string>) =>
-      app.inject({ method: 'POST', url: '/commands', headers: { cookie: alice.cookie, ...headers }, payload: command });
+      app.inject({
+        method: 'POST',
+        url: '/api/commands',
+        headers: { cookie: alice.cookie, ...headers },
+        payload: command,
+      });
 
     expect((await write({})).statusCode).toBe(403);
     expect((await write({ origin: 'https://evil.example' })).statusCode).toBe(403);
     expect((await write({ origin: 'null' })).statusCode).toBe(403);
 
     // Nothing was created.
-    expect((await client(app, alice.cookie).get('/commands')).json()).toEqual([]);
+    expect((await client(app, alice.cookie).get('/api/commands')).json()).toEqual([]);
     expect((await write({ origin: TRUSTED_ORIGIN })).statusCode).toBe(201);
   });
 
   it('rejects deletes from an untrusted Origin', async () => {
     const alice = await signUp(app, 'Alice');
-    const created = await client(app, alice.cookie).post('/commands', command);
+    const created = await client(app, alice.cookie).post('/api/commands', command);
 
     const response = await app.inject({
       method: 'DELETE',
-      url: `/commands/${created.json().id}`,
+      url: `/api/commands/${created.json().id}`,
       headers: { cookie: alice.cookie, origin: 'https://evil.example' },
     });
 
     expect(response.statusCode).toBe(403);
-    expect((await client(app, alice.cookie).get('/commands')).json()).toHaveLength(1);
+    expect((await client(app, alice.cookie).get('/api/commands')).json()).toHaveLength(1);
   });
 
   it('allows reads without an Origin', async () => {
     const alice = await signUp(app, 'Alice');
-    const response = await app.inject({ method: 'GET', url: '/commands', headers: { cookie: alice.cookie } });
+    const response = await app.inject({ method: 'GET', url: '/api/commands', headers: { cookie: alice.cookie } });
 
     expect(response.statusCode).toBe(200);
   });

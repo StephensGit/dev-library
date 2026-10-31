@@ -45,3 +45,11 @@ describe('production cookies', () => {
     expect(response.statusCode).toBe(403);
   });
 });
+
+describe('production headers', () => {
+  it('tells browsers to upgrade any http subresource requests to https', async () => {
+    const { headers } = await app.inject({ method: 'GET', url: '/api/health' });
+
+    expect(headers['content-security-policy']).toContain('upgrade-insecure-requests');
+  });
+});

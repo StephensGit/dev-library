@@ -19,18 +19,18 @@ describe('sending the session token', () => {
   it('sends it only as a Bearer header, with no cookie', async () => {
     const api = await server(() => ({ json: [] }));
 
-    await apiRequest(api.url, '/commands', { sessionToken: 'secret-token' });
+    await apiRequest(api.url, '/api/commands', { sessionToken: 'secret-token' });
 
     expect(api.requests[0].headers.authorization).toBe('Bearer secret-token');
     expect(api.requests[0].headers.cookie).toBeUndefined();
-    expect(api.requests[0].path).toBe('/commands');
+    expect(api.requests[0].path).toBe('/api/commands');
   });
 
   it.each([301, 302, 307, 308])('never follows a %i redirect, so the token stays with this API', async (status) => {
     const elsewhere = await server(() => ({ json: [] }));
-    const api = await server(() => ({ status, headers: { location: `${elsewhere.url}/commands` } }));
+    const api = await server(() => ({ status, headers: { location: `${elsewhere.url}/api/commands` } }));
 
-    await expect(apiRequest(api.url, '/commands', { sessionToken: 'secret-token' })).rejects.toThrow(/redirect/);
+    await expect(apiRequest(api.url, '/api/commands', { sessionToken: 'secret-token' })).rejects.toThrow(/redirect/);
 
     expect(elsewhere.requests).toHaveLength(0);
   });
@@ -39,7 +39,7 @@ describe('sending the session token', () => {
     const api = await server(() => ({ json: [] }));
     await api.close();
 
-    await expect(apiRequest(api.url, '/commands')).rejects.toBeInstanceOf(ApiUnreachableError);
+    await expect(apiRequest(api.url, '/api/commands')).rejects.toBeInstanceOf(ApiUnreachableError);
   });
 });
 

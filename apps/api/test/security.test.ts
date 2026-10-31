@@ -134,7 +134,7 @@ describe('rate limiting: command and tag routes', () => {
     const send = (remoteAddress: string, spoofedIp?: string) =>
       app.inject({
         method: 'GET',
-        url: '/commands',
+        url: '/api/commands',
         remoteAddress,
         headers: spoofedIp ? { 'x-forwarded-for': spoofedIp } : {},
       });
@@ -176,14 +176,14 @@ describe('session cookies and lifetime', () => {
     const alice = await signUp(app, 'Alice');
     await pool.query(`update sessions set expires_at = now() - interval '1 second'`);
 
-    expect((await client(app, alice.cookie).get('/commands')).statusCode).toBe(401);
+    expect((await client(app, alice.cookie).get('/api/commands')).statusCode).toBe(401);
   });
 
   it('rejects a revoked session', async () => {
     const alice = await signUp(app, 'Alice');
     await pool.query('delete from sessions');
 
-    expect((await client(app, alice.cookie).get('/commands')).statusCode).toBe(401);
+    expect((await client(app, alice.cookie).get('/api/commands')).statusCode).toBe(401);
   });
 
   it('extends a session that is used after a day', async () => {
@@ -214,7 +214,7 @@ describe('logging', () => {
       const alice = await signUp(logged, 'Alice');
       await signIn(logged, alice.email, 'a wrong password');
       const api = client(logged, alice.cookie);
-      await api.post('/commands', { title: 'Logged', command: 'echo hi' });
+      await api.post('/api/commands', { title: 'Logged', command: 'echo hi' });
       await api.get('/api/auth/get-session');
       await api.post('/api/auth/sign-out', {});
 
@@ -238,7 +238,7 @@ describe('logging', () => {
 
 describe('HTTP hardening', () => {
   it('sends security headers on API and auth responses', async () => {
-    for (const url of ['/', '/commands', '/api/auth/get-session']) {
+    for (const url of ['/api/health', '/api/commands', '/api/auth/get-session']) {
       const { headers } = await app.inject({ method: 'GET', url });
 
       expect(headers['x-content-type-options']).toBe('nosniff');
@@ -250,7 +250,7 @@ describe('HTTP hardening', () => {
 
   it('rejects request bodies over 100 KB with 413', async () => {
     const alice = await signUp(app, 'Alice');
-    const response = await client(app, alice.cookie).post('/commands', {
+    const response = await client(app, alice.cookie).post('/api/commands', {
       title: 'Huge',
       command: 'x'.repeat(150 * 1024),
     });

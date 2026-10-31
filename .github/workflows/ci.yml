@@ -61,8 +61,16 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dev_library_test
 
-      - name: Build web
-        run: pnpm --filter web build
+      # The web app, then the self-contained API bundle in apps/api/dist (which includes the web app).
+      - name: Build web and API
+        run: pnpm build
+
+      # The bundled migrator must find its SQL files next to it. The test database
+      # is already fully migrated by the tests, so this applies nothing.
+      - name: Check bundled migrations
+        run: node apps/api/dist/migrate.js
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dev_library_test
 
       - name: Build CLI
         run: pnpm --filter cli build
