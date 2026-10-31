@@ -24,7 +24,7 @@ type DevCommand = {
 
 async function fetchCommands(search?: string): Promise<DevCommand[]> {
   const { apiUrl, sessionToken } = await requireCredentials();
-  const path = search ? `/commands?search=${encodeURIComponent(search)}` : '/commands';
+  const path = search ? `/api/commands?search=${encodeURIComponent(search)}` : '/api/commands';
   const response = await apiRequest(apiUrl, path, { sessionToken });
 
   if (response.status === 401) {

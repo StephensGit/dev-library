@@ -20,7 +20,7 @@ export type CommandPayload = {
   tagIds: number[];
 };
 
-// Requests go through the Vite dev proxy (see vite.config.ts).
+// Same origin as the web app: the Vite dev proxy in development (see vite.config.ts), Fastify in production.
 const API_URL = '/api';
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {

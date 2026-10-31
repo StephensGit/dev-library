@@ -216,14 +216,18 @@ The CLI sends the token as `Authorization: Bearer <token>`. Because another webs
 
 ### Commands and tags
 
-| Route                  | Purpose                                                 |
-| ---------------------- | ------------------------------------------------------- |
-| `GET /commands`        | Your commands with their tags (`?search=` filters them) |
-| `POST /commands`       | Create a command, optionally with some of your tags     |
-| `PUT /commands/:id`    | Replace one of your commands                            |
-| `DELETE /commands/:id` | Delete one of your commands                             |
-| `GET /tags`            | Your tags                                               |
-| `POST /tags`           | Create a tag (names are unique per user, ignoring case) |
+Like the auth routes, every API route lives under `/api`, so the web app, the CLI and the production server all use the same paths.
+
+| Route                      | Purpose                                                 |
+| -------------------------- | ------------------------------------------------------- |
+| `GET /api/commands`        | Your commands with their tags (`?search=` filters them) |
+| `POST /api/commands`       | Create a command, optionally with some of your tags     |
+| `PUT /api/commands/:id`    | Replace one of your commands                            |
+| `DELETE /api/commands/:id` | Delete one of your commands                             |
+| `GET /api/tags`            | Your tags                                               |
+| `POST /api/tags`           | Create a tag (names are unique per user, ignoring case) |
+| `PUT /api/tags/:id`        | Rename one of your tags                                 |
+| `DELETE /api/tags/:id`     | Delete one of your tags (its commands are kept)         |
 
 These routes:
 
@@ -237,6 +241,10 @@ These routes:
 Every response includes security headers from [`@fastify/helmet`](https://github.com/fastify/fastify-helmet).
 
 Database transactions ensure that creating a command and its tag relationships either succeeds completely or is rolled back.
+
+### Health check
+
+`GET /api/health` returns `{"status":"ok"}` when the database answers within 3 seconds, and **503** `{"status":"unavailable"}` otherwise (or while the server is shutting down). It needs no login and isn't rate-limited, so the hosting platform and uptime monitors can call it.
 
 ## Technology
 
@@ -454,14 +462,16 @@ http://localhost:3000
 Check that the API is running:
 
 ```bash
-curl http://localhost:3000
+curl http://localhost:3000/api/health
 ```
 
 The command routes need a login session, so without one they respond with 401:
 
 ```bash
-curl -i http://localhost:3000/commands
+curl -i http://localhost:3000/api/commands
 ```
+
+In development the API only serves `/api/*`; the web app comes from Vite (next step), which forwards `/api/*` to the API unchanged.
 
 ## 3. Start the Web App
 
@@ -645,13 +655,16 @@ Dev Library isn't deployed yet. Whatever hosting is chosen, these are required.
 
 ## One HTTPS origin for the web app and API
 
-The browser must load the web app and call the API from the **same origin**, for example `https://devlibrary.example.com`. A reverse proxy in front of both does what the Vite dev proxy does locally:
+The browser must load the web app and call the API from the **same origin**, for example `https://devlibrary.example.com`. In production one Fastify server provides both:
 
-| Path            | Goes to                                 |
-| --------------- | --------------------------------------- |
-| `/api/auth/*`   | the API, path unchanged                 |
-| `/api/*`        | the API, with the `/api` prefix removed |
-| everything else | the built web app (`apps/web/dist`)     |
+| Path                           | Served as                                                     |
+| ------------------------------ | ------------------------------------------------------------- |
+| `/api/*`                       | the API (unknown `/api` paths are JSON **404**s)              |
+| files in the build             | the web app's files; hashed `/assets/*` are cached for a year |
+| any other page, e.g. `/device` | `index.html`, so the web app can show it (`GET`/`HEAD` only)  |
+| a missing file, e.g. `/x.js`   | JSON **404**, not `index.html`                                |
+
+Helmet's security headers, including Content-Security-Policy and HSTS, are sent on web app responses too. `upgrade-insecure-requests` is only added when `NODE_ENV=production`, so the app still loads over plain `http://localhost`.
 
 This matters because:
 
@@ -681,6 +694,55 @@ Rate limits are counted per client IP. Behind a reverse proxy every request arri
 
 `TRUST_PROXY=true` is refused, because it would let any client pick its own IP and dodge the rate limits. Getting this wrong in the other direction (no `TRUST_PROXY` behind a proxy) makes every user share one rate-limit bucket, so a few failed logins would lock everyone out.
 
+## Production build
+
+`pnpm build` (at the root) builds the web app, then bundles the API into a self-contained `apps/api/dist`:
+
+```text
+apps/api/dist/
+├── server.js      the API, which also serves the web app
+├── migrate.js     applies pending database migrations
+├── migrations/    the SQL files from packages/db/drizzle
+└── public/        the built web app from apps/web/dist
+```
+
+Every npm dependency is bundled in, so `dist/` runs with plain `node`, without `node_modules`. In production:
+
+```bash
+node apps/api/dist/migrate.js   # before starting the new version
+node apps/api/dist/server.js
+```
+
+- **Migrations** use drizzle-orm's migrator and the same history table as `pnpm db:migrate`. All pending migrations run in one transaction, under an advisory lock so two deploys can't migrate at once, and a statement that waits more than 10 seconds for a table lock fails instead of blocking live traffic. The old version keeps serving while they run, so each migration must work with both the old and the new code.
+- **Listening:** `PORT` (default `3000`); on `0.0.0.0` when `NODE_ENV=production`, otherwise `localhost`. `HOST` overrides it.
+- **Shutdown:** on `SIGTERM` or `SIGINT` the server stops accepting connections, lets in-flight requests finish (up to 10 seconds), closes the database pool and exits.
+- **Startup checks:** with `NODE_ENV=production` the server refuses to start without the built web app, as well as without the settings below.
+
+## Trying the production build locally
+
+This runs the compiled build the way production does, on one origin, against its **own database** so your development data isn't touched. `NODE_ENV` stays `development` because production requires `https://`.
+
+```bash
+# 1. A separate database (once)
+docker compose exec db psql -U postgres -c "create database dev_library_prodlocal"
+
+# 2. Its settings, outside the repo's .env (.env.* files are git-ignored)
+cat > .env.prodlocal <<ENV
+NODE_ENV=development
+PORT=3100
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dev_library_prodlocal
+BETTER_AUTH_URL=http://localhost:3100
+BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+ENV
+
+# 3. Build, migrate and start
+pnpm build
+node --env-file=.env.prodlocal apps/api/dist/migrate.js
+node --env-file=.env.prodlocal apps/api/dist/server.js
+```
+
+Open http://localhost:3100 to register and use the app. Point the CLI at it with `DEVLIB_API_URL=http://localhost:3100 devlib login`. Remove the database afterwards with `docker compose exec db psql -U postgres -c "drop database dev_library_prodlocal"`.
+
 ## One API instance
 
 Command and tag rate limits are counted in the API's memory, so they assume a single API server. Running several would need a shared store.
@@ -689,9 +751,8 @@ Command and tag rate limits are counted in the API's memory, so they assume a si
 
 Still to do before Dev Library is exposed to the internet:
 
-- [ ] **Hosting:** one HTTPS origin with a reverse proxy routing paths as described above, and `TRUST_PROXY` set to match it.
+- [ ] **Hosting:** one HTTPS origin serving the production build, and `TRUST_PROXY` set to match the platform's proxy.
 - [ ] **Secrets:** `NODE_ENV=production`, an `https://` `BETTER_AUTH_URL`, and a fresh `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) stored in the host's secret manager.
-- [ ] **Web app headers:** whatever serves `apps/web/dist` must send its own security headers (Content-Security-Policy, HSTS, `X-Content-Type-Options`, `frame-ancestors`). The API's Helmet headers only cover API responses.
 - [ ] **Database:** automated backups, encryption at rest, and access restricted to the API. Backups contain password hashes, so treat them as secrets; delete old local `pg_dump` files.
 - [ ] **Email verification:** registration currently reveals whether an email already has an account ("User already exists"). Hiding that, and adding password reset, needs an email provider and Better Auth's email verification.
 - [ ] **Per-account protection:** rate limits are per IP, so slow password guessing from many IPs isn't stopped. Consider per-account throttling or alerts.
@@ -760,14 +821,14 @@ devlib search docker
 ## Useful URLs
 
 ```text
-Fastify API
-http://localhost:3000
+Fastify API health check
+http://localhost:3000/api/health
 
 Web app (log in here)
 http://localhost:5173
 
 Commands endpoint (needs a login session)
-http://localhost:3000/commands
+http://localhost:3000/api/commands
 ```
 
 ## Shut Everything Down

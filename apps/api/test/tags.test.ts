@@ -21,19 +21,19 @@ beforeEach(async () => {
 });
 
 async function createTag(api: Api, name: string) {
-  const response = await api.post('/tags', { name });
+  const response = await api.post('/api/tags', { name });
   expect(response.statusCode).toBe(201);
   return response.json().id as number;
 }
 
 async function createCommand(api: Api, title: string, tagIds: number[] = []) {
-  const response = await api.post('/commands', { title, command: `echo ${title}`, tagIds });
+  const response = await api.post('/api/commands', { title, command: `echo ${title}`, tagIds });
   expect(response.statusCode).toBe(201);
   return response.json().id as number;
 }
 
 async function tagNames(api: Api) {
-  return (await api.get('/tags')).json().map((tag: { name: string }) => tag.name);
+  return (await api.get('/api/tags')).json().map((tag: { name: string }) => tag.name);
 }
 
 // Read straight from the database so the test also sees columns the API doesn't return.
@@ -51,7 +51,7 @@ describe('renaming a tag', () => {
   it('renames your own tag', async () => {
     const id = await createTag(alice, 'dokcer');
 
-    const response = await alice.put(`/tags/${id}`, { name: '  docker  ' });
+    const response = await alice.put(`/api/tags/${id}`, { name: '  docker  ' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ id, name: 'docker' });
@@ -64,9 +64,9 @@ describe('renaming a tag', () => {
     await createCommand(alice, 'Pods', [id, otherTag]);
     await createCommand(alice, 'Nodes', [id]);
 
-    expect((await alice.put(`/tags/${id}`, { name: 'kubernetes' })).statusCode).toBe(200);
+    expect((await alice.put(`/api/tags/${id}`, { name: 'kubernetes' })).statusCode).toBe(200);
 
-    const commands = (await alice.get('/commands')).json();
+    const commands = (await alice.get('/api/commands')).json();
     expect(commands).toMatchObject([
       { title: 'Nodes', tags: [{ id, name: 'kubernetes' }] },
       {
@@ -83,7 +83,7 @@ describe('renaming a tag', () => {
     await createTag(alice, 'docker');
     const id = await createTag(alice, 'git');
 
-    const response = await alice.put(`/tags/${id}`, { name: 'DOCKER' });
+    const response = await alice.put(`/api/tags/${id}`, { name: 'DOCKER' });
 
     expect(response.statusCode).toBe(409);
     expect(await tagNames(alice)).toEqual(['docker', 'git']);
@@ -93,13 +93,13 @@ describe('renaming a tag', () => {
     await createTag(bob, 'docker');
     const id = await createTag(alice, 'git');
 
-    expect((await alice.put(`/tags/${id}`, { name: 'docker' })).statusCode).toBe(200);
+    expect((await alice.put(`/api/tags/${id}`, { name: 'docker' })).statusCode).toBe(200);
   });
 
   it('allows changing only the capitalisation', async () => {
     const id = await createTag(alice, 'docker');
 
-    const response = await alice.put(`/tags/${id}`, { name: 'Docker' });
+    const response = await alice.put(`/api/tags/${id}`, { name: 'Docker' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ id, name: 'Docker' });
@@ -109,7 +109,7 @@ describe('renaming a tag', () => {
   it('allows saving the same name unchanged', async () => {
     const id = await createTag(alice, 'docker');
 
-    expect((await alice.put(`/tags/${id}`, { name: 'docker' })).statusCode).toBe(200);
+    expect((await alice.put(`/api/tags/${id}`, { name: 'docker' })).statusCode).toBe(200);
   });
 
   it.each([
@@ -120,14 +120,14 @@ describe('renaming a tag', () => {
   ])('rejects %s', async (_, payload) => {
     const id = await createTag(alice, 'docker');
 
-    expect((await alice.put(`/tags/${id}`, payload)).statusCode).toBe(400);
+    expect((await alice.put(`/api/tags/${id}`, payload)).statusCode).toBe(400);
     expect(await tagNames(alice)).toEqual(['docker']);
   });
 
   it('ignores userId in the body', async () => {
     const id = await createTag(alice, 'docker');
 
-    const response = await alice.put(`/tags/${id}`, { name: 'Docker', userId: 'someone-else' });
+    const response = await alice.put(`/api/tags/${id}`, { name: 'Docker', userId: 'someone-else' });
 
     expect(response.statusCode).toBe(200);
     expect(await tagNames(alice)).toEqual(['Docker']);
@@ -146,7 +146,7 @@ describe('non-string tag names', () => {
   ];
 
   it.each(nonStrings)('rejects %s when creating', async (_, name) => {
-    const response = await alice.post('/tags', { name });
+    const response = await alice.post('/api/tags', { name });
 
     expect(response.statusCode).toBe(400);
     expect(response.json().message).toBe('body/name must be string');
@@ -156,7 +156,7 @@ describe('non-string tag names', () => {
   it.each(nonStrings)('rejects %s when renaming', async (_, name) => {
     const id = await createTag(alice, 'docker');
 
-    const response = await alice.put(`/tags/${id}`, { name });
+    const response = await alice.put(`/api/tags/${id}`, { name });
 
     expect(response.statusCode).toBe(400);
     expect(response.json().message).toBe('body/name must be string');
@@ -166,13 +166,13 @@ describe('non-string tag names', () => {
   it('still accepts a numeric-looking string', async () => {
     const id = await createTag(alice, '42');
 
-    expect((await alice.put(`/tags/${id}`, { name: '2024' })).statusCode).toBe(200);
+    expect((await alice.put(`/api/tags/${id}`, { name: '2024' })).statusCode).toBe(200);
     expect(await tagNames(alice)).toEqual(['2024']);
   });
 
   it('still validates the name when it is a string', async () => {
-    expect((await alice.post('/tags', {})).statusCode).toBe(400);
-    expect((await alice.post('/tags', { name: '  ' })).statusCode).toBe(400);
+    expect((await alice.post('/api/tags', {})).statusCode).toBe(400);
+    expect((await alice.post('/api/tags', { name: '  ' })).statusCode).toBe(400);
   });
 });
 
@@ -187,7 +187,7 @@ describe('deleting a tag', () => {
     const before = await commandRows();
     expect(await linkCount(id)).toBe(3);
 
-    expect((await alice.delete(`/tags/${id}`)).statusCode).toBe(204);
+    expect((await alice.delete(`/api/tags/${id}`)).statusCode).toBe(204);
 
     expect(await tagNames(alice)).toEqual(['keep']);
     expect(await linkCount(id)).toBe(0);
@@ -195,7 +195,7 @@ describe('deleting a tag', () => {
     // Same rows, unchanged, including updated_at.
     expect(await commandRows()).toEqual(before);
 
-    const commands = (await alice.get('/commands')).json();
+    const commands = (await alice.get('/api/commands')).json();
     expect(commands.map((command: { title: string; tags: unknown[] }) => [command.title, command.tags])).toEqual([
       ['One', []],
       ['Three', []],
@@ -206,12 +206,12 @@ describe('deleting a tag', () => {
 
   it('still lets you create and filter commands afterwards', async () => {
     const id = await createTag(alice, 'old');
-    await alice.delete(`/tags/${id}`);
+    await alice.delete(`/api/tags/${id}`);
     const fresh = await createTag(alice, 'old');
 
     await createCommand(alice, 'Again', [fresh]);
 
-    expect((await alice.get('/commands?search=old')).json()).toMatchObject([{ title: 'Again' }]);
+    expect((await alice.get('/api/commands?search=old')).json()).toMatchObject([{ title: 'Again' }]);
   });
 });
 
@@ -219,7 +219,7 @@ describe("another user's tag", () => {
   it('returns 404 on rename and leaves it unchanged', async () => {
     const id = await createTag(alice, 'private');
 
-    expect((await bob.put(`/tags/${id}`, { name: 'hijacked' })).statusCode).toBe(404);
+    expect((await bob.put(`/api/tags/${id}`, { name: 'hijacked' })).statusCode).toBe(404);
     expect(await tagNames(alice)).toEqual(['private']);
   });
 
@@ -227,7 +227,7 @@ describe("another user's tag", () => {
     const id = await createTag(alice, 'private');
     await createCommand(alice, 'Mine', [id]);
 
-    expect((await bob.delete(`/tags/${id}`)).statusCode).toBe(404);
+    expect((await bob.delete(`/api/tags/${id}`)).statusCode).toBe(404);
     expect(await tagNames(alice)).toEqual(['private']);
     expect(await linkCount(id)).toBe(1);
   });
@@ -235,8 +235,8 @@ describe("another user's tag", () => {
   it('gets the same 404 as a tag that does not exist', async () => {
     const id = await createTag(alice, 'private');
 
-    const someoneElses = await bob.put(`/tags/${id}`, { name: 'x' });
-    const missing = await bob.put('/tags/999999', { name: 'x' });
+    const someoneElses = await bob.put(`/api/tags/${id}`, { name: 'x' });
+    const missing = await bob.put('/api/tags/999999', { name: 'x' });
 
     expect(someoneElses.statusCode).toBe(missing.statusCode);
   });
@@ -244,20 +244,20 @@ describe("another user's tag", () => {
 
 describe('tags that do not exist', () => {
   it('returns 404 on rename and delete', async () => {
-    expect((await alice.put('/tags/999999', { name: 'ghost' })).statusCode).toBe(404);
-    expect((await alice.delete('/tags/999999')).statusCode).toBe(404);
+    expect((await alice.put('/api/tags/999999', { name: 'ghost' })).statusCode).toBe(404);
+    expect((await alice.delete('/api/tags/999999')).statusCode).toBe(404);
   });
 
   it('returns 404 when deleting the same tag twice', async () => {
     const id = await createTag(alice, 'once');
 
-    expect((await alice.delete(`/tags/${id}`)).statusCode).toBe(204);
-    expect((await alice.delete(`/tags/${id}`)).statusCode).toBe(404);
+    expect((await alice.delete(`/api/tags/${id}`)).statusCode).toBe(204);
+    expect((await alice.delete(`/api/tags/${id}`)).statusCode).toBe(404);
   });
 
   it.each(['abc', '0', '-1', '1.5'])('rejects the invalid id %s', async (id) => {
-    expect((await alice.put(`/tags/${id}`, { name: 'x' })).statusCode).toBe(400);
-    expect((await alice.delete(`/tags/${id}`)).statusCode).toBe(400);
+    expect((await alice.put(`/api/tags/${id}`, { name: 'x' })).statusCode).toBe(400);
+    expect((await alice.delete(`/api/tags/${id}`)).statusCode).toBe(400);
   });
 });
 
@@ -266,8 +266,8 @@ describe('without a session', () => {
     const id = await createTag(alice, 'docker');
     const anonymous = client(app);
 
-    expect((await anonymous.put(`/tags/${id}`, { name: 'x' })).statusCode).toBe(401);
-    expect((await anonymous.delete(`/tags/${id}`)).statusCode).toBe(401);
+    expect((await anonymous.put(`/api/tags/${id}`, { name: 'x' })).statusCode).toBe(401);
+    expect((await anonymous.delete(`/api/tags/${id}`)).statusCode).toBe(401);
     expect(await tagNames(alice)).toEqual(['docker']);
   });
 
@@ -275,8 +275,8 @@ describe('without a session', () => {
     const id = await createTag(alice, 'docker');
     const headers = { cookie: aliceCookie, origin: 'https://evil.example' };
 
-    const rename = await app.inject({ method: 'PUT', url: `/tags/${id}`, headers, payload: { name: 'x' } });
-    const remove = await app.inject({ method: 'DELETE', url: `/tags/${id}`, headers });
+    const rename = await app.inject({ method: 'PUT', url: `/api/tags/${id}`, headers, payload: { name: 'x' } });
+    const remove = await app.inject({ method: 'DELETE', url: `/api/tags/${id}`, headers });
 
     expect(rename.statusCode).toBe(403);
     expect(remove.statusCode).toBe(403);

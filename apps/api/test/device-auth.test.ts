@@ -239,22 +239,22 @@ describe('CLI requests with a Bearer token', () => {
     const alice = await signUp(app, 'Alice');
     const api = cli(await cliLogin(alice.cookie));
 
-    const created = await api.post('/commands', command);
+    const created = await api.post('/api/commands', command);
     expect(created.statusCode).toBe(201);
-    expect((await api.get('/commands?search=list')).json()).toHaveLength(1);
-    expect((await api.delete(`/commands/${created.json().id}`)).statusCode).toBe(204);
+    expect((await api.get('/api/commands?search=list')).json()).toHaveLength(1);
+    expect((await api.delete(`/api/commands/${created.json().id}`)).statusCode).toBe(204);
   });
 
   it("only sees the logged-in user's commands", async () => {
     const alice = await signUp(app, 'Alice');
     const bob = await signUp(app, 'Bob');
-    const bobsCommand = await client(app, bob.cookie).post('/commands', { title: 'Bob only', command: 'echo bob' });
+    const bobsCommand = await client(app, bob.cookie).post('/api/commands', { title: 'Bob only', command: 'echo bob' });
     const api = cli(await cliLogin(alice.cookie));
 
-    expect((await api.get('/commands')).json()).toEqual([]);
-    expect((await api.get('/commands?search=bob')).json()).toEqual([]);
-    expect((await api.put(`/commands/${bobsCommand.json().id}`, command)).statusCode).toBe(404);
-    expect((await api.delete(`/commands/${bobsCommand.json().id}`)).statusCode).toBe(404);
+    expect((await api.get('/api/commands')).json()).toEqual([]);
+    expect((await api.get('/api/commands?search=bob')).json()).toEqual([]);
+    expect((await api.put(`/api/commands/${bobsCommand.json().id}`, command)).statusCode).toBe(404);
+    expect((await api.delete(`/api/commands/${bobsCommand.json().id}`)).statusCode).toBe(404);
   });
 
   it.each([
@@ -264,14 +264,14 @@ describe('CLI requests with a Bearer token', () => {
   ])('returns 401 for %s', async (_name, token) => {
     const api = cli(token);
 
-    expect((await api.get('/commands')).statusCode).toBe(401);
-    expect((await api.post('/commands', command)).statusCode).toBe(401);
+    expect((await api.get('/api/commands')).statusCode).toBe(401);
+    expect((await api.post('/api/commands', command)).statusCode).toBe(401);
   });
 
   it('returns 401 for other Authorization schemes', async () => {
     const response = await app.inject({
       method: 'POST',
-      url: '/commands',
+      url: '/api/commands',
       headers: { authorization: `Basic ${Buffer.from(`alice:${PASSWORD}`).toString('base64')}` },
       payload: command,
     });
@@ -284,7 +284,7 @@ describe('CLI requests with a Bearer token', () => {
     const api = cli(await cliLogin(alice.cookie));
     await pool.query(`update sessions set expires_at = now() - interval '1 second'`);
 
-    expect((await api.get('/commands')).statusCode).toBe(401);
+    expect((await api.get('/api/commands')).statusCode).toBe(401);
   });
 });
 
@@ -296,9 +296,9 @@ describe('CLI logout', () => {
 
     expect((await api.post('/api/auth/sign-out', {})).statusCode).toBe(200);
 
-    expect((await api.get('/commands')).statusCode).toBe(401);
+    expect((await api.get('/api/commands')).statusCode).toBe(401);
     expect((await api.get('/api/auth/get-session')).json()).toBeNull();
-    expect((await client(app, alice.cookie).get('/commands')).statusCode).toBe(200);
+    expect((await client(app, alice.cookie).get('/api/commands')).statusCode).toBe(200);
   });
 
   it('rejects the token after the session is revoked from the server', async () => {
@@ -306,7 +306,7 @@ describe('CLI logout', () => {
     const token = await cliLogin(alice.cookie);
     await pool.query('delete from sessions where token = $1', [token]);
 
-    expect((await cli(token).get('/commands')).statusCode).toBe(401);
+    expect((await cli(token).get('/api/commands')).statusCode).toBe(401);
   });
 
   it('ends the CLI session when the user is deleted', async () => {
@@ -314,7 +314,7 @@ describe('CLI logout', () => {
     const token = await cliLogin(alice.cookie);
     await pool.query('delete from users');
 
-    expect((await cli(token).get('/commands')).statusCode).toBe(401);
+    expect((await cli(token).get('/api/commands')).statusCode).toBe(401);
   });
 });
 
@@ -323,7 +323,7 @@ describe('mixed credentials', () => {
     const alice = await signUp(app, 'Alice');
     const token = await cliLogin(alice.cookie);
 
-    for (const url of ['/commands', '/api/auth/get-session']) {
+    for (const url of ['/api/commands', '/api/auth/get-session']) {
       const response = await app.inject({
         method: 'GET',
         url,
@@ -339,14 +339,14 @@ describe('mixed credentials', () => {
     for (const authorization of ['Bearer not-a-real-token', 'Bearer ']) {
       const response = await app.inject({
         method: 'POST',
-        url: '/commands',
+        url: '/api/commands',
         headers: { cookie: alice.cookie, authorization },
         payload: command,
       });
       expect(response.statusCode).toBe(400);
     }
 
-    expect((await client(app, alice.cookie).get('/commands')).json()).toEqual([]);
+    expect((await client(app, alice.cookie).get('/api/commands')).json()).toEqual([]);
   });
 
   it('still requires the trusted Origin for cookie writes', async () => {
@@ -355,7 +355,7 @@ describe('mixed credentials', () => {
     for (const headers of [{}, { origin: 'https://evil.example' }]) {
       const response = await app.inject({
         method: 'POST',
-        url: '/commands',
+        url: '/api/commands',
         headers: { cookie: alice.cookie, ...headers },
         payload: command,
       });
@@ -431,7 +431,7 @@ describe('logging', () => {
       const { device_code, user_code } = await startLogin(logged);
       await review(alice.cookie, user_code, 'approve', logged);
       const token = (await poll(device_code, logged)).json().access_token;
-      await cli(token, logged).get('/commands');
+      await cli(token, logged).get('/api/commands');
       await cli(token, logged).post('/api/auth/sign-out', {});
 
       const everything = [

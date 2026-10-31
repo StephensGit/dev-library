@@ -1,9 +1,16 @@
-import { commandTags, commands, db, tags } from '@dev-library/db';
+import { commandTags, commands, db, pool, tags } from '@dev-library/db';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 import { fromNodeHeaders } from 'better-auth/node';
 import { and, asc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
-import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyServerOptions } from 'fastify';
+import Fastify, {
+  type FastifyInstance,
+  type FastifyReply,
+  type FastifyRequest,
+  type FastifyServerOptions,
+} from 'fastify';
+import { extname, sep } from 'node:path';
 import { auth } from './auth.js';
 import { config } from './config.js';
 import { credentialType, currentUserId, requireAuth, verifyOrigin } from './hooks.js';
@@ -14,6 +21,15 @@ export const BODY_LIMIT = 100 * 1024;
 
 // Per client IP, across all command and tag routes. Kept in memory: fine for a single API server.
 export const LIBRARY_RATE_LIMIT = { max: 120, timeWindow: '1 minute' };
+
+// /api/health reports the database as unavailable if it doesn't answer within this time.
+export const HEALTH_CHECK_TIMEOUT_MS = 3000;
+
+export type AppOptions = FastifyServerOptions & {
+  // The built web app (apps/web/dist) to serve from this origin. Left out in development and most tests,
+  // where Vite serves the web app and this is an API-only server.
+  webRoot?: string;
+};
 
 type CommandBody = {
   title: string;
@@ -492,7 +508,64 @@ async function libraryRoutes(fastify: FastifyInstance) {
   );
 }
 
-export function buildApp(options: FastifyServerOptions = {}) {
+// For the hosting platform and uptime checks. Not rate-limited or authenticated, and it never says
+// why the database is unavailable. While the server shuts down, Fastify answers 503 by itself.
+function healthRoute(fastify: FastifyInstance) {
+  fastify.get('/api/health', async (request, reply) => {
+    let timer: NodeJS.Timeout | undefined;
+
+    try {
+      await Promise.race([
+        pool.query('select 1'),
+        new Promise((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Database health check timed out')), HEALTH_CHECK_TIMEOUT_MS);
+        }),
+      ]);
+
+      return { status: 'ok' };
+    } catch (error) {
+      request.log.error(error, 'Health check failed');
+      return reply.code(503).send({ status: 'unavailable' });
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+}
+
+// Built files have content hashes in their names (assets/index-3f9a.js), so they can be cached forever.
+// index.html must always be revalidated so a new deploy is picked up.
+function setCacheHeaders(reply: FastifyReply, path: string) {
+  const immutable = path.includes(`${sep}assets${sep}`);
+  reply.header('cache-control', immutable ? 'public, max-age=31536000, immutable' : 'no-cache');
+}
+
+// Serves the built web app. Unknown page paths such as /device get index.html so the app can show them;
+// unknown /api paths and missing files (anything with a file extension) stay JSON 404s.
+// Registered on the root instance (not as an encapsulated plugin) so the fallback covers every path.
+function webAppRoutes(fastify: FastifyInstance, webRoot: string) {
+  // wildcard: false registers a route for each file that exists when the server starts,
+  // instead of a catch-all route that could shadow /api.
+  fastify.register(fastifyStatic, {
+    root: webRoot,
+    wildcard: false,
+    cacheControl: false,
+    setHeaders: setCacheHeaders,
+  });
+
+  fastify.setNotFoundHandler(async (request, reply) => {
+    const path = request.url.split('?')[0];
+    const isApi = path === '/api' || path.startsWith('/api/');
+    const isPage = (request.method === 'GET' || request.method === 'HEAD') && !isApi && !extname(path);
+
+    if (!isPage) {
+      throw httpError(404, `Route ${request.method}:${path} not found`);
+    }
+
+    return reply.sendFile('index.html');
+  });
+}
+
+export function buildApp({ webRoot, ...options }: AppOptions = {}) {
   const fastify = Fastify({
     // Decides request.ip: which proxies may report the client's address (see config.ts).
     trustProxy: config.trustProxy,
@@ -500,21 +573,28 @@ export function buildApp(options: FastifyServerOptions = {}) {
     ...options,
   });
 
-  // Security headers such as X-Content-Type-Options, X-Frame-Options and Strict-Transport-Security.
-  fastify.register(helmet);
+  // Security headers such as X-Content-Type-Options, X-Frame-Options and Strict-Transport-Security,
+  // on every response including the web app's. Locally the app is served over plain http, where
+  // upgrade-insecure-requests would make some browsers (Safari) request its scripts over https and fail.
+  fastify.register(helmet, {
+    contentSecurityPolicy: {
+      directives: { upgradeInsecureRequests: config.isProduction ? [] : null },
+    },
+  });
 
   fastify.decorateRequest('user', null);
   fastify.decorateRequest('authMethod', null);
 
   authRoutes(fastify);
+  healthRoute(fastify);
 
-  fastify.get('/', async () => {
-    return {
-      message: 'Dev Library API is running',
-    };
-  });
+  // Every command and tag route lives under /api, like the auth routes, so the web app, the CLI and a
+  // reverse proxy all use the same paths.
+  fastify.register(libraryRoutes, { prefix: '/api' });
 
-  fastify.register(libraryRoutes);
+  if (webRoot) {
+    webAppRoutes(fastify, webRoot);
+  }
 
   return fastify;
 }
