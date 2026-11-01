@@ -1,7 +1,8 @@
 import { isIP } from 'node:net';
 import { CliError } from './errors.js';
 
-export const DEFAULT_API_URL = 'http://localhost:3000';
+// The hosted Dev Library. Set DEVLIB_API_URL to use another API, e.g. http://localhost:3000 in development.
+export const DEFAULT_API_URL = 'https://dev-library-gjfn.onrender.com';
 
 // Plain HTTP would send the session token unencrypted, so it's only allowed when the API is on this machine.
 function isLoopback(hostname: string) {

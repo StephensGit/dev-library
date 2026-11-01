@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_API_URL, apiUrlFromEnv, parseApiUrl } from '../src/config.js';
 
 describe('DEVLIB_API_URL', () => {
-  it('defaults to the local API', () => {
+  it('defaults to the hosted API', () => {
+    expect(DEFAULT_API_URL).toBe('https://dev-library-gjfn.onrender.com');
     expect(apiUrlFromEnv({})).toBe(DEFAULT_API_URL);
     expect(apiUrlFromEnv({ DEVLIB_API_URL: '  ' })).toBe(DEFAULT_API_URL);
+  });
+
+  it('uses DEVLIB_API_URL instead of the default when set', () => {
+    expect(apiUrlFromEnv({ DEVLIB_API_URL: 'http://localhost:3000' })).toBe('http://localhost:3000');
+    expect(apiUrlFromEnv({ DEVLIB_API_URL: ' https://devlib.example.com/ ' })).toBe('https://devlib.example.com');
   });
 
   it.each([

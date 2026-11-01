@@ -1,23 +1,48 @@
 {
-  "name": "cli",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "@stephenmoran/devlib",
+  "version": "0.1.0",
+  "description": "Command-line client for Dev Library: search and list your saved developer commands from the terminal.",
+  "keywords": [
+    "cli",
+    "commands",
+    "snippets",
+    "developer-tools",
+    "dev-library",
+    "devlib"
+  ],
+  "homepage": "https://github.com/StephensGit/dev-library/tree/main/apps/cli#readme",
+  "bugs": {
+    "url": "https://github.com/StephensGit/dev-library/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StephensGit/dev-library.git",
+    "directory": "apps/cli"
+  },
+  "license": "MIT",
+  "author": "Stephen Moran",
+  "type": "module",
   "bin": {
     "devlib": "./dist/index.js"
   },
-  "scripts": {
-    "test": "vitest run",
-    "dev": "tsx src/index.ts",
-    "build": "tsc",
-    "typecheck": "tsc --noEmit -p tsconfig.test.json"
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm run clean && tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "prepublishOnly": "pnpm run typecheck && pnpm run test && pnpm run build"
+  },
   "dependencies": {
-    "cli": "link:",
     "commander": "^15.0.0"
   },
   "devDependencies": {

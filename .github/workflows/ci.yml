@@ -73,7 +73,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dev_library_test
 
       - name: Build CLI
-        run: pnpm --filter cli build
+        run: pnpm --filter @stephenmoran/devlib build
 
       - name: Smoke-test CLI
         run: node apps/cli/dist/index.js --help
