@@ -5,7 +5,8 @@ import { AuthField } from './AuthField';
 import { loginSchema, type LoginValues } from './authSchema';
 
 type LoginFormProps = {
-  onRegister: () => void;
+  // Left out when registration is closed (or not yet known), which hides the "Create an account" link.
+  onRegister?: () => void;
 };
 
 export function LoginForm({ onRegister }: LoginFormProps) {
@@ -58,12 +59,14 @@ export function LoginForm({ onRegister }: LoginFormProps) {
         </button>
       </div>
 
-      <p className="auth-switch">
-        New to Dev Library?{' '}
-        <button type="button" className="link-button" onClick={onRegister}>
-          Create an account
-        </button>
-      </p>
+      {onRegister && (
+        <p className="auth-switch">
+          New to Dev Library?{' '}
+          <button type="button" className="link-button" onClick={onRegister}>
+            Create an account
+          </button>
+        </p>
+      )}
     </form>
   );
 }

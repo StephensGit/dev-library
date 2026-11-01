@@ -7,6 +7,8 @@
     "build": "tsx build.ts",
     "start": "node --enable-source-maps dist/server.js",
     "migrate": "node --enable-source-maps dist/migrate.js",
+    "create-user": "tsx --env-file=../../.env src/create-user.ts",
+    "reset-password": "tsx --env-file=../../.env src/reset-password.ts",
     "test": "vitest run",
     "dev": "tsx watch --env-file=../../.env src/server.ts",
     "typecheck": "tsc --noEmit"

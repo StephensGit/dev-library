@@ -568,6 +568,15 @@ function webAppRoutes(fastify: FastifyInstance, webRoot: string) {
   });
 }
 
+// Public settings the web app needs before anyone logs in, e.g. whether to offer registration.
+// Only add values that are safe for anyone to read. Not cached, so a restart with new settings shows at once.
+function publicConfigRoute(fastify: FastifyInstance) {
+  fastify.get('/api/config', async (_request, reply) => {
+    reply.header('cache-control', 'no-store');
+    return { signupEnabled: config.signupEnabled };
+  });
+}
+
 export function buildApp({ webRoot, ...options }: AppOptions = {}) {
   const fastify = Fastify({
     // Decides request.ip: which proxies may report the client's address (see config.ts).
@@ -590,6 +599,7 @@ export function buildApp({ webRoot, ...options }: AppOptions = {}) {
 
   authRoutes(fastify);
   healthRoute(fastify);
+  publicConfigRoute(fastify);
 
   // Every command and tag route lives under /api, like the auth routes, so the web app, the CLI and a
   // reverse proxy all use the same paths.

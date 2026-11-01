@@ -1,8 +1,10 @@
 // Builds a self-contained production bundle in dist/:
-//   dist/server.js    the API, which also serves the web app
-//   dist/migrate.js   applies database migrations (run before each deploy)
-//   dist/migrations/  the SQL migrations from packages/db/drizzle
-//   dist/public/      the built web app from apps/web/dist (build it first: `pnpm build` at the root does both)
+//   dist/server.js          the API, which also serves the web app
+//   dist/migrate.js         applies database migrations (run before each deploy)
+//   dist/create-user.js     creates an account from a shell while public sign-up is closed
+//   dist/reset-password.js  sets a new password for an existing account from a shell
+//   dist/migrations/        the SQL migrations from packages/db/drizzle
+//   dist/public/            the built web app from apps/web/dist (build it first: `pnpm build` at the root does both)
 // Every npm dependency is bundled in, so dist/ runs with plain `node` and no node_modules.
 import { build } from 'esbuild';
 import { cp, rm } from 'node:fs/promises';
@@ -19,7 +21,7 @@ if (!existsSync(new URL('index.html', webDist))) {
 await rm(dist, { recursive: true, force: true });
 
 await build({
-  entryPoints: ['src/server.ts', 'src/migrate.ts'],
+  entryPoints: ['src/server.ts', 'src/migrate.ts', 'src/create-user.ts', 'src/reset-password.ts'],
   outdir: 'dist',
   bundle: true,
   platform: 'node',

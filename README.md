@@ -187,6 +187,8 @@ PostgreSQL
 
 Each user has a private library. Registration, login, sessions and logout are handled by [Better Auth](https://www.better-auth.com) at `/api/auth/*` (for example `POST /api/auth/sign-up/email` and `POST /api/auth/sign-in/email`). Logging in sets an `HttpOnly`, `SameSite=Lax` session cookie (also `Secure` over HTTPS). Sessions are stored in PostgreSQL, so logging out ends them immediately. A session lasts 7 days and is extended when used after a day.
 
+In production, public registration is closed by default (`SIGNUP_ENABLED`): `POST /api/auth/sign-up/email` returns **400** `EMAIL_PASSWORD_SIGN_UP_DISABLED` and accounts are created with the `create-user` script. When `SIGNUP_ALLOWED_EMAILS` is set, only those addresses can register; others get **403** `SIGNUP_NOT_ALLOWED`. See [Who can register](#who-can-register).
+
 Rate limits, per client IP and stored in PostgreSQL:
 
 | Endpoint                       | Limit                   |
@@ -245,6 +247,10 @@ Database transactions ensure that creating a command and its tag relationships e
 ### Health check
 
 `GET /api/health` returns `{"status":"ok"}` when the database answers within 3 seconds, and **503** `{"status":"unavailable"}` otherwise (or while the server is shutting down). It needs no login and isn't rate-limited, so the hosting platform and uptime monitors can call it.
+
+### Public config
+
+`GET /api/config` returns `{"signupEnabled": true|false}` (from `SIGNUP_ENABLED`), with no login. The web app uses it to hide "Create an account" and to show "Registration is currently closed" at `/register`. It treats sign-up as closed until the API says otherwise, including while loading or if the request fails. The API still enforces the setting on its own.
 
 ## Technology
 
@@ -380,6 +386,8 @@ BETTER_AUTH_URL=http://localhost:5173
 ```
 
 `BETTER_AUTH_URL` is where the browser opens the app. Only requests from that origin may change data.
+
+Locally anyone can register in the web app. To try the production setup, set `SIGNUP_ENABLED=false` and use the [`create-user` script](#creating-accounts-create-user) (see [Who can register](#who-can-register)).
 
 The `.env` file is not committed to Git.
 
@@ -674,15 +682,61 @@ This matters because:
 
 ## Environment
 
-| Variable             | Production value                                                    |
-| -------------------- | ------------------------------------------------------------------- |
-| `NODE_ENV`           | `production`                                                        |
-| `BETTER_AUTH_URL`    | The public `https://` URL. The API refuses to start with `http://`. |
-| `BETTER_AUTH_SECRET` | At least 32 random characters, never reused from development        |
-| `DATABASE_URL`       | The production database                                             |
-| `TRUST_PROXY`        | Which proxies may report the client IP (below)                      |
+| Variable                | Production value                                                    |
+| ----------------------- | ------------------------------------------------------------------- |
+| `NODE_ENV`              | `production`                                                        |
+| `BETTER_AUTH_URL`       | The public `https://` URL. The API refuses to start with `http://`. |
+| `BETTER_AUTH_SECRET`    | At least 32 random characters, never reused from development        |
+| `DATABASE_URL`          | The production database                                             |
+| `TRUST_PROXY`           | Which proxies may report the client IP (below)                      |
+| `SIGNUP_ENABLED`        | Leave unset (public registration closed) (below)                    |
+| `SIGNUP_ALLOWED_EMAILS` | Only needed with `SIGNUP_ENABLED=true` (below)                      |
 
 The API checks these at startup and refuses to run if they're missing or unsafe.
+
+## Who can register
+
+Dev Library starts as a single-user deployment, so in production nobody can register through the website. Accounts are created from a shell with the `create-user` script.
+
+| Setting                 | Unset                                                    | Set                                                                  |
+| ----------------------- | -------------------------------------------------------- | -------------------------------------------------------------------- |
+| `SIGNUP_ENABLED`        | `false` in production, `true` elsewhere                  | `true` or `false`; anything else stops startup                       |
+| `SIGNUP_ALLOWED_EMAILS` | no restriction (refused in production with sign-up open) | comma-separated emails that may register, matched case-insensitively |
+
+- **Closed sign-up** is enforced by Better Auth on the server (`emailAndPassword.disableSignUp`): `POST /api/auth/sign-up/email` returns **400** `EMAIL_PASSWORD_SIGN_UP_DISABLED`, whatever the web app shows.
+- **The allowlist** is checked just before any user is created, including by the `create-user` script. Other addresses get **403** `SIGNUP_NOT_ALLOWED` ("Registration is not open for this email address."). Entries are trimmed and lowercased; an entry that isn't an email address stops startup.
+- With `NODE_ENV=production` and `SIGNUP_ENABLED=true`, the API refuses to start unless `SIGNUP_ALLOWED_EMAILS` lists at least one address.
+- Neither setting affects existing accounts: they can still log in, keep their sessions and log in the CLI. Changing either needs a restart.
+
+The allowlist only checks the address typed in, not that the person controls that inbox, since there's no email verification. Open sign-up (even with an allowlist) only once that's acceptable.
+
+### Creating accounts (`create-user`)
+
+Run it where the server's environment is available (the host's shell, or locally with the production `DATABASE_URL`, `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`):
+
+```bash
+node apps/api/dist/create-user.js --email you@example.com --name "Your Name"   # after pnpm build
+pnpm --filter api create-user --email you@example.com                           # from source, using .env
+```
+
+- It prints the database name, then asks for the password twice at a hidden prompt. `--name` defaults to the part of the email before `@`.
+- The password is never accepted as an argument or environment variable, and it's never printed or logged. The script refuses to run without an interactive terminal.
+- The account is created through Better Auth's own server-side calls (`auth.$context`: its password hasher, then a user and a `credential` account), the same as public sign-up, so it logs in normally. Passwords must be 12 to 128 characters.
+- It refuses an email that already has an account. There's no HTTP endpoint for it.
+
+### Resetting a password (`reset-password`)
+
+There's no "forgot password" link without email, so a lost password is reset from a shell, the same way:
+
+```bash
+node apps/api/dist/reset-password.js --email you@example.com   # after pnpm build
+pnpm --filter api reset-password --email you@example.com        # from source, using .env
+```
+
+- It prints the database name, checks the account exists, then asks for the new password twice at a hidden prompt. The same rules as `create-user` apply: interactive terminal only, the password is never an argument and never printed or logged, 12 to 128 characters.
+- Only the stored hash on the account's `credential` row changes, using Better Auth's password hasher. The user's id, commands and tags stay as they are.
+- **Every session for that user is ended**, in every browser and the CLI (`devlib login` again), and any CLI login approved but not yet collected is cancelled. Other users aren't affected.
+- An unknown email gives "No account has this email address."; an account without a password gives "This account has no password to reset". Nothing is changed in either case.
 
 ## Client IPs behind a proxy (`TRUST_PROXY`)
 
@@ -700,10 +754,12 @@ Rate limits are counted per client IP. Behind a reverse proxy every request arri
 
 ```text
 apps/api/dist/
-├── server.js      the API, which also serves the web app
-├── migrate.js     applies pending database migrations
-├── migrations/    the SQL files from packages/db/drizzle
-└── public/        the built web app from apps/web/dist
+├── server.js          the API, which also serves the web app
+├── migrate.js         applies pending database migrations
+├── create-user.js     creates an account (see Who can register)
+├── reset-password.js  sets a new password for an account
+├── migrations/        the SQL files from packages/db/drizzle
+└── public/            the built web app from apps/web/dist
 ```
 
 Every npm dependency is bundled in, so `dist/` runs with plain `node`, without `node_modules`. In production:
@@ -733,15 +789,17 @@ PORT=3100
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dev_library_prodlocal
 BETTER_AUTH_URL=http://localhost:3100
 BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+SIGNUP_ENABLED=false
 ENV
 
 # 3. Build, migrate and start
 pnpm build
 node --env-file=.env.prodlocal apps/api/dist/migrate.js
+node --env-file=.env.prodlocal apps/api/dist/create-user.js --email you@example.com
 node --env-file=.env.prodlocal apps/api/dist/server.js
 ```
 
-Open http://localhost:3100 to register and use the app. Point the CLI at it with `DEVLIB_API_URL=http://localhost:3100 devlib login`. Remove the database afterwards with `docker compose exec db psql -U postgres -c "drop database dev_library_prodlocal"`.
+Open http://localhost:3100 to log in and use the app. Point the CLI at it with `DEVLIB_API_URL=http://localhost:3100 devlib login`. Remove the database afterwards with `docker compose exec db psql -U postgres -c "drop database dev_library_prodlocal"`.
 
 ## One API instance
 
@@ -752,13 +810,14 @@ Command and tag rate limits are counted in the API's memory, so they assume a si
 Still to do before Dev Library is exposed to the internet:
 
 - [ ] **Hosting:** one HTTPS origin serving the production build, and `TRUST_PROXY` set to match the platform's proxy.
+- [ ] **Registration:** `SIGNUP_ENABLED` unset (closed); your account created with `create-user` from the host's shell.
 - [ ] **Secrets:** `NODE_ENV=production`, an `https://` `BETTER_AUTH_URL`, and a fresh `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) stored in the host's secret manager.
 - [ ] **Database:** automated backups, encryption at rest, and access restricted to the API. Backups contain password hashes, so treat them as secrets; delete old local `pg_dump` files.
 - [ ] **Email verification:** registration currently reveals whether an email already has an account ("User already exists"). Hiding that, and adding password reset, needs an email provider and Better Auth's email verification.
 - [ ] **Per-account protection:** rate limits are per IP, so slow password guessing from many IPs isn't stopped. Consider per-account throttling or alerts.
 - [ ] **CORS:** keep it off. Allowing other origins with credentials would undo the CSRF protection.
 - [ ] **Dependencies:** `pnpm audit --prod` with no unresolved high findings; remove the `fast-uri` override in `pnpm-workspace.yaml` once upstream ranges require the fix.
-- [ ] **Final check:** a manual pass on the deployed site (register, log in, CRUD, log out, rate limits, cookie flags in the browser's dev tools).
+- [ ] **Final check:** a manual pass on the deployed site (sign-up refused, log in, CRUD, log out, rate limits, cookie flags in the browser's dev tools).
 
 # Quick Reference
 
@@ -781,6 +840,8 @@ pnpm test
 ```
 
 To use a different database, set `TEST_DATABASE_URL`. Its name must end in `_test`, so the tests can never wipe your development data.
+
+`pnpm test` also runs the CLI tests and the web app's component tests (Vitest with jsdom; no API or database needed).
 
 ## Normal Development
 

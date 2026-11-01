@@ -6,6 +6,9 @@ import { PASSWORD } from './helpers.js';
 const ORIGIN = 'https://devlibrary.example.com';
 vi.stubEnv('NODE_ENV', 'production');
 vi.stubEnv('BETTER_AUTH_URL', ORIGIN);
+// Public sign-up is closed in production by default (see signup-closed.test.ts); these tests open it.
+vi.stubEnv('SIGNUP_ENABLED', 'true');
+vi.stubEnv('SIGNUP_ALLOWED_EMAILS', 'prod@example.test,dev@example.test');
 
 const { buildApp } = await import('../src/app.js');
 const app = buildApp();
@@ -43,6 +46,12 @@ describe('production cookies', () => {
     });
 
     expect(response.statusCode).toBe(403);
+  });
+});
+
+describe('public config', () => {
+  it('reports sign-up as open when SIGNUP_ENABLED=true', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/config' })).json()).toEqual({ signupEnabled: true });
   });
 });
 
