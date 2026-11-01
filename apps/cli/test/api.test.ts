@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { ApiUnreachableError, apiRequest } from '../src/api.js';
+import { setTimeout as delay } from 'node:timers/promises';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiTimeoutError, ApiUnreachableError, REQUEST_TIMEOUT_MS, apiRequest } from '../src/api.js';
 import { fetchSessionUser, revokeSession } from '../src/session.js';
 import { startServer } from './server.js';
 
@@ -40,6 +41,83 @@ describe('sending the session token', () => {
     await api.close();
 
     await expect(apiRequest(api.url, '/api/commands')).rejects.toBeInstanceOf(ApiUnreachableError);
+  });
+});
+
+describe('slow and sleeping servers', () => {
+  it('waits long enough for a sleeping server to wake, but not forever', () => {
+    expect(REQUEST_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+    expect(REQUEST_TIMEOUT_MS).toBeLessThanOrEqual(120_000);
+  });
+
+  it('gives up with a timeout error when the API never answers', async () => {
+    const api = await server(async () => {
+      await delay(500);
+      return { json: [] };
+    });
+
+    const error = await apiRequest(api.url, '/api/commands', { timeoutMs: 100, onSlow: () => {} }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(ApiTimeoutError);
+    expect(error).toBeInstanceOf(ApiUnreachableError);
+    expect(error.message).toMatch(/didn't respond within 0 seconds/);
+    expect(error.message).toMatch(/starting up/);
+  });
+
+  it('reports a refused connection as unreachable, not as a timeout', async () => {
+    const api = await server(() => ({ json: [] }));
+    await api.close();
+
+    const error = await apiRequest(api.url, '/api/commands').catch((e) => e);
+
+    expect(error).toBeInstanceOf(ApiUnreachableError);
+    expect(error).not.toBeInstanceOf(ApiTimeoutError);
+    expect(error.message).toMatch(/Could not connect/);
+  });
+
+  it('says why it is waiting when the API is slow, then succeeds without retrying', async () => {
+    const api = await server(async () => {
+      await delay(200);
+      return { json: [] };
+    });
+    const onSlow = vi.fn();
+
+    const response = await apiRequest(api.url, '/api/auth/sign-out', {
+      method: 'POST',
+      body: {},
+      slowNoticeMs: 20,
+      onSlow,
+    });
+
+    expect(response.status).toBe(200);
+    expect(onSlow).toHaveBeenCalledTimes(1);
+    expect(api.requests).toHaveLength(1);
+  });
+
+  it('stays quiet when the API answers quickly', async () => {
+    const api = await server(() => ({ json: [] }));
+    const onSlow = vi.fn();
+
+    await apiRequest(api.url, '/api/commands', { slowNoticeMs: 1_000, onSlow });
+    await delay(1_100);
+
+    expect(onSlow).not.toHaveBeenCalled();
+  });
+
+  it('stops waiting at once when the caller cancels', async () => {
+    const api = await server(async () => {
+      await delay(500);
+      return { json: [] };
+    });
+    const cancel = new AbortController();
+    setTimeout(() => cancel.abort(), 50);
+
+    const error = await apiRequest(api.url, '/api/commands', { signal: cancel.signal, onSlow: () => {} }).catch(
+      (e) => e,
+    );
+
+    expect(error).not.toBeInstanceOf(ApiUnreachableError);
+    expect(cancel.signal.aborted).toBe(true);
   });
 });
 

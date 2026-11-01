@@ -8,6 +8,7 @@ import { clearCredentials, loadCredentials, saveCredentials, type Credentials } 
 import { deviceLogin, formatUserCode } from './device-login.js';
 import { CliError } from './errors.js';
 import { fetchSessionUser, requireCredentials, revokeSession, sessionEnded } from './session.js';
+import { packageVersion } from './version.js';
 
 type Tag = {
   id: number;
@@ -195,7 +196,7 @@ async function whoami() {
 
 const program = new Command();
 
-program.name('devlib').description('Dev Library CLI').version('0.1.0');
+program.name('devlib').description('Dev Library CLI').version(packageVersion());
 
 program
   .command('login')

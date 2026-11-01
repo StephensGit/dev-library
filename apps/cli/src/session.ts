@@ -40,7 +40,8 @@ export async function revokeSession(apiUrl: string, sessionToken: string) {
   return true;
 }
 
-// The saved login for the API in DEVLIB_API_URL. A login saved for a different API is never sent here.
+// The saved login for the API in use (DEVLIB_API_URL, or the default). A login saved for a different API
+// is never sent here.
 export async function requireCredentials(env: NodeJS.ProcessEnv = process.env): Promise<Credentials> {
   const apiUrl = apiUrlFromEnv(env);
   const credentials = await loadCredentials(env);
@@ -50,9 +51,13 @@ export async function requireCredentials(env: NodeJS.ProcessEnv = process.env): 
   }
 
   if (credentials.apiUrl !== apiUrl) {
+    const usingEnv = Boolean(env.DEVLIB_API_URL?.trim());
     throw new CliError(
-      `You're logged in to ${credentials.apiUrl}, but DEVLIB_API_URL is ${apiUrl}.\n` +
-        'Run devlib login to log in to this API (or unset DEVLIB_API_URL).',
+      usingEnv
+        ? `You're logged in to ${credentials.apiUrl}, but DEVLIB_API_URL is ${apiUrl}.\n` +
+            'Run devlib login to log in to this API (or unset DEVLIB_API_URL).'
+        : `You're logged in to ${credentials.apiUrl}, but devlib uses ${apiUrl} by default.\n` +
+            `Run devlib login to log in to it (or set DEVLIB_API_URL=${credentials.apiUrl}).`,
     );
   }
 

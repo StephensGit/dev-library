@@ -501,7 +501,14 @@ The terminal will display the local URL for the web application.
 
 # CLI Setup
 
-The CLI can be linked globally so that the `devlib` command can be used from anywhere in the terminal.
+To just use the CLI with the hosted Dev Library, install it from npm (Node.js 22.12+). See [apps/cli/README.md](apps/cli/README.md) for details:
+
+```bash
+npm install --global @stephenmoran/devlib
+devlib login
+```
+
+The rest of this section is for working on the CLI itself. A development build can be linked globally so that the `devlib` command can be used from anywhere in the terminal.
 
 This only needs to be configured once on each machine.
 
@@ -561,9 +568,10 @@ devlib list
 
 ## 3. Log in
 
-The API and web app must both be running (see above). Then:
+The CLI uses the hosted API by default. To use your local API instead, the API and web app must both be running (see above). Then:
 
 ```bash
+export DEVLIB_API_URL=http://localhost:3000
 devlib login
 ```
 
@@ -594,10 +602,10 @@ When the login expires or is revoked, these commands say so and ask you to run `
 
 ## Configuration
 
-| Variable          | Default                 | Purpose                                                                                  |
-| ----------------- | ----------------------- | ---------------------------------------------------------------------------------------- |
-| `DEVLIB_API_URL`  | `http://localhost:3000` | The API to use. Must be `https://`, except for `localhost` and other loopback addresses. |
-| `XDG_CONFIG_HOME` | `~/.config`             | Where the login is saved, in `devlib/credentials.json`.                                  |
+| Variable          | Default                                 | Purpose                                                                                  |
+| ----------------- | --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `DEVLIB_API_URL`  | `https://dev-library-gjfn.onrender.com` | The API to use. Must be `https://`, except for `localhost` and other loopback addresses. |
+| `XDG_CONFIG_HOME` | `~/.config`                             | Where the login is saved, in `devlib/credentials.json`.                                  |
 
 The saved login holds the session token, the API URL and your name and email. The `devlib` directory is created with `0700` permissions and the file with `0600`, and the file is written to a temporary file first and then renamed. The CLI refuses to use a login file that is a symlink, belongs to another user or can be read by others. A login is only ever sent to the API it came from, and the CLI never follows redirects. If you change `DEVLIB_API_URL`, run `devlib login` again.
 

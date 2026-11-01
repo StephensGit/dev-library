@@ -151,6 +151,21 @@ describe('which API a login is used with', () => {
     );
   });
 
+  it('never sends a login saved for another API to the default API', async () => {
+    await saveCredentials(credentials, env);
+
+    await expect(requireCredentials(env)).rejects.toThrow(
+      /logged in to http:\/\/localhost:3000, but devlib uses https:\/\/dev-library-gjfn\.onrender\.com by default\.\nRun devlib login to log in to it \(or set DEVLIB_API_URL=http:\/\/localhost:3000\)/,
+    );
+  });
+
+  it('uses a login saved for the default API without DEVLIB_API_URL', async () => {
+    const hosted = { ...credentials, apiUrl: 'https://dev-library-gjfn.onrender.com' };
+    await saveCredentials(hosted, env);
+
+    expect(await requireCredentials(env)).toEqual(hosted);
+  });
+
   it('asks the user to log in when there is no login', async () => {
     await expect(requireCredentials(env)).rejects.toThrow(/not logged in/);
   });
