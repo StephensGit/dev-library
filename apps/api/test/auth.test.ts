@@ -55,6 +55,16 @@ describe('registration, login and logout', () => {
   });
 });
 
+describe('public config', () => {
+  it('tells the web app that sign-up is open in development, without a session or Origin', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/config' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ signupEnabled: true });
+    expect(response.headers['cache-control']).toBe('no-store');
+  });
+});
+
 describe('unauthenticated requests', () => {
   it.each([
     ['GET', '/api/commands'],

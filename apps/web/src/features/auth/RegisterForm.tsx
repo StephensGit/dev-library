@@ -6,9 +6,10 @@ import { registerSchema, type RegisterValues } from './authSchema';
 
 type RegisterFormProps = {
   onLogin: () => void;
+  onRegistered?: () => void;
 };
 
-export function RegisterForm({ onLogin }: RegisterFormProps) {
+export function RegisterForm({ onLogin, onRegistered }: RegisterFormProps) {
   const createAccount = useRegister();
 
   const {
@@ -22,7 +23,11 @@ export function RegisterForm({ onLogin }: RegisterFormProps) {
   });
 
   return (
-    <form className="auth-form" noValidate onSubmit={handleSubmit((values) => createAccount.mutate(values))}>
+    <form
+      className="auth-form"
+      noValidate
+      onSubmit={handleSubmit((values) => createAccount.mutate(values, { onSuccess: onRegistered }))}
+    >
       <div className="auth-heading">
         <h1>Create your account</h1>
         <p>Keep your commands in a private library.</p>
